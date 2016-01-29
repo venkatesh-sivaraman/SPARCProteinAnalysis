@@ -1,0 +1,299 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXFileReference section */
+		960209871A44C698003A6A99 /* _fastint.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = _fastint.c; sourceTree = "<group>"; };
+		960209881A44C81A003A6A99 /* setup.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = setup.py; sourceTree = "<group>"; };
+		960874411A62E96B00E1AD9A /* background_process.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = background_process.py; sourceTree = "<group>"; };
+		960A23C31A912FF200739447 /* tmscore.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = tmscore.py; sourceTree = "<group>"; };
+		960A23C41A91300E00739447 /* TMscore.jar */ = {isa = PBXFileReference; lastKnownFileType = archive.jar; path = TMscore.jar; sourceTree = "<group>"; };
+		961253601A70945B00231E37 /* distributions_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = distributions_1.py; sourceTree = "<group>"; };
+		961253651A7EC28400231E37 /* permissions.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = permissions.py; sourceTree = "<group>"; };
+		961253661A858F1500231E37 /* randomcoil_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = randomcoil_1.py; sourceTree = "<group>"; };
+		961253671A85B45300231E37 /* probsource_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = probsource_1.py; sourceTree = "<group>"; };
+		962521F11C4AA31F00552142 /* random */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = random; sourceTree = "<group>"; };
+		963ED0201A55A9F7005F0079 /* probsource.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = probsource.py; sourceTree = "<group>"; };
+		963ED02A1A5610DA005F0079 /* planeregression.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = planeregression.py; sourceTree = "<group>"; };
+		963ED02D1A576FFF005F0079 /* graphs.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = graphs.py; sourceTree = "<group>"; };
+		9652F9181A3B0D4B00A37E22 /* pdbanalysis.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = pdbanalysis.py; sourceTree = "<group>"; };
+		9652F9191A3CAF1500A37E22 /* randomcoil.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = randomcoil.py; sourceTree = "<group>"; };
+		9652F91A1A3CC30500A37E22 /* distributions.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = distributions.py; sourceTree = "<group>"; };
+		9652F9221A3DF1F600A37E22 /* ProteinViewer.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = ProteinViewer.xcodeproj; path = ProteinViewer/ProteinViewer.xcodeproj; sourceTree = "<group>"; };
+		9652F9291A3E261C00A37E22 /* folding.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = folding.py; sourceTree = "<group>"; };
+		9652F92C1A3E324600A37E22 /* generic_distributions.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = generic_distributions.py; sourceTree = "<group>"; };
+		965383541BE1BD0B0064894B /* charmm.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = charmm.py; sourceTree = "<group>"; };
+		9655187D1A2B950100775578 /* proteinmath.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = proteinmath.py; sourceTree = "<group>"; usesTabs = 1; };
+		9655187E1A2B97A200775578 /* aminoacids.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = aminoacids.py; sourceTree = "<group>"; };
+		9655187F1A2B9C3E00775578 /* polypeptide.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = polypeptide.py; sourceTree = "<group>"; };
+		965518801A2BE68500775578 /* pdbstats.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = pdbstats.py; sourceTree = "<group>"; };
+		967CDE1B1A1A556500E7C822 /* folding_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = folding_1.py; sourceTree = "<group>"; };
+		96A448A319C3A80200C4991A /* main.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = main.py; sourceTree = "<group>"; };
+		96A448A419C3AA8600C4991A /* proteinmath_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = proteinmath_1.py; sourceTree = "<group>"; };
+		96A448A519C3EADF00C4991A /* aminoacids_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = aminoacids_1.py; sourceTree = "<group>"; };
+		96AA06371A9D79DF00340A38 /* decoy_helpers.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = decoy_helpers.py; sourceTree = "<group>"; };
+		96D2926C1C5B0B5F002E842F /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = sparc_distribution.py; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		960209891A44C8A1003A6A99 /* Fast Int Conversion */ = {
+			isa = PBXGroup;
+			children = (
+				960209871A44C698003A6A99 /* _fastint.c */,
+				960209881A44C81A003A6A99 /* setup.py */,
+			);
+			name = "Fast Int Conversion";
+			sourceTree = "<group>";
+		};
+		963ED0211A55AB87005F0079 /* Simulators */ = {
+			isa = PBXGroup;
+			children = (
+				9652F9291A3E261C00A37E22 /* folding.py */,
+				9652F9191A3CAF1500A37E22 /* randomcoil.py */,
+			);
+			name = Simulators;
+			sourceTree = "<group>";
+		};
+		963ED0221A55AB97005F0079 /* Distributions */ = {
+			isa = PBXGroup;
+			children = (
+				963ED0201A55A9F7005F0079 /* probsource.py */,
+				9652F91A1A3CC30500A37E22 /* distributions.py */,
+				9652F92C1A3E324600A37E22 /* generic_distributions.py */,
+				96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */,
+				961253651A7EC28400231E37 /* permissions.py */,
+			);
+			name = Distributions;
+			sourceTree = "<group>";
+		};
+		963ED0231A55ABA4005F0079 /* Model Objects */ = {
+			isa = PBXGroup;
+			children = (
+				962521F11C4AA31F00552142 /* random */,
+				9655187E1A2B97A200775578 /* aminoacids.py */,
+				9655187F1A2B9C3E00775578 /* polypeptide.py */,
+			);
+			name = "Model Objects";
+			sourceTree = "<group>";
+		};
+		963ED0241A55ABB2005F0079 /* Data Analysis */ = {
+			isa = PBXGroup;
+			children = (
+				965518801A2BE68500775578 /* pdbstats.py */,
+				9652F9181A3B0D4B00A37E22 /* pdbanalysis.py */,
+				965383541BE1BD0B0064894B /* charmm.py */,
+				963ED02A1A5610DA005F0079 /* planeregression.py */,
+				963ED02D1A576FFF005F0079 /* graphs.py */,
+				960A23C31A912FF200739447 /* tmscore.py */,
+				960A23C41A91300E00739447 /* TMscore.jar */,
+			);
+			name = "Data Analysis";
+			sourceTree = "<group>";
+		};
+		9652F9231A3DF1F600A37E22 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9655187C1A2B94D600775578 /* Outdated */ = {
+			isa = PBXGroup;
+			children = (
+				96A448A419C3AA8600C4991A /* proteinmath_1.py */,
+				961253661A858F1500231E37 /* randomcoil_1.py */,
+				96A448A519C3EADF00C4991A /* aminoacids_1.py */,
+				967CDE1B1A1A556500E7C822 /* folding_1.py */,
+				961253601A70945B00231E37 /* distributions_1.py */,
+				961253671A85B45300231E37 /* probsource_1.py */,
+			);
+			name = Outdated;
+			sourceTree = "<group>";
+		};
+		96A4489819C3A7B800C4991A = {
+			isa = PBXGroup;
+			children = (
+				9652F9221A3DF1F600A37E22 /* ProteinViewer.xcodeproj */,
+				96A448A319C3A80200C4991A /* main.py */,
+				960874411A62E96B00E1AD9A /* background_process.py */,
+				96AA06371A9D79DF00340A38 /* decoy_helpers.py */,
+				9655187D1A2B950100775578 /* proteinmath.py */,
+				96D2926C1C5B0B5F002E842F /* .gitignore */,
+				963ED0231A55ABA4005F0079 /* Model Objects */,
+				963ED0221A55AB97005F0079 /* Distributions */,
+				963ED0211A55AB87005F0079 /* Simulators */,
+				960209891A44C8A1003A6A99 /* Fast Int Conversion */,
+				963ED0241A55ABB2005F0079 /* Data Analysis */,
+				9655187C1A2B94D600775578 /* Outdated */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXLegacyTarget section */
+		96A4489D19C3A7B800C4991A /* PythonProteins */ = {
+			isa = PBXLegacyTarget;
+			buildArgumentsString = "$(ACTION)";
+			buildConfigurationList = 96A448A019C3A7B800C4991A /* Build configuration list for PBXLegacyTarget "PythonProteins" */;
+			buildPhases = (
+			);
+			buildToolPath = /usr/bin/python;
+			dependencies = (
+			);
+			name = PythonProteins;
+			passBuildSettingsInEnvironment = 1;
+			productName = PythonProteins;
+		};
+/* End PBXLegacyTarget section */
+
+/* Begin PBXProject section */
+		96A4489919C3A7B800C4991A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0510;
+				ORGANIZATIONNAME = "Venkatesh Sivaraman";
+			};
+			buildConfigurationList = 96A4489C19C3A7B800C4991A /* Build configuration list for PBXProject "PythonProteins" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 96A4489819C3A7B800C4991A;
+			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 9652F9231A3DF1F600A37E22 /* Products */;
+					ProjectRef = 9652F9221A3DF1F600A37E22 /* ProteinViewer.xcodeproj */;
+				},
+			);
+			projectRoot = "";
+			targets = (
+				96A4489D19C3A7B800C4991A /* PythonProteins */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin XCBuildConfiguration section */
+		96A4489E19C3A7B800C4991A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		96A4489F19C3A7B800C4991A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.9;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		96A448A119C3A7B800C4991A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				DEBUGGING_SYMBOLS = YES;
+				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		96A448A219C3A7B800C4991A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				OTHER_CFLAGS = "";
+				OTHER_LDFLAGS = "";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		96A4489C19C3A7B800C4991A /* Build configuration list for PBXProject "PythonProteins" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				96A4489E19C3A7B800C4991A /* Debug */,
+				96A4489F19C3A7B800C4991A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		96A448A019C3A7B800C4991A /* Build configuration list for PBXLegacyTarget "PythonProteins" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				96A448A119C3A7B800C4991A /* Debug */,
+				96A448A219C3A7B800C4991A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 96A4489919C3A7B800C4991A /* Project object */;
+}

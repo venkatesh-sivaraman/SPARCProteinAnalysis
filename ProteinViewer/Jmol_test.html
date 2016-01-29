@@ -1,0 +1,53 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="en">
+	<head>
+		<title>Test Molecules</title>
+		<script type="text/javascript" src="JSmol.min.js"></script>
+		<script type="text/javascript" src="JSmol.GLmol.min.js"></script>
+		<script type="text/javascript" src="js/JSmolApplet.js"></script>
+		<script type="text/javascript" src="js/JSmolApi.js"></script>
+		<script type="text/javascript" src="js/JSmolControls.js"></script>
+		<script type="text/javascript" src="js/j2sjmol.js"></script>
+		<script type="text/javascript" src="js/JSmol.js"></script>
+		<script type="text/javascript" src="js/JSmolConsole.js"></script>
+		<script type="text/javascript" src="js/JSmolMenu.js"></script>
+		<!-- // following two only necessary for WebGL version:
+		 -->
+		<script type="text/javascript" src="js/JSmolThree.js"></script>
+		<script type="text/javascript" src="js/JSmolGLmol.js"></script>
+
+		<script type="text/javascript">
+			var Info = {
+				color: "#FFFFFF", // white background (note this changes legacy default which was black)
+				height: 700,      // pixels (but it may be in percent, like "100%")
+				width: 700,
+				use: "HTML5",     // "HTML5" or "Java" (case-insensitive)
+				j2sPath: "j2s",          // only used in the HTML5 modality
+				jarPath: "java",               // only used in the Java modality
+				jarFile: "JmolApplet0.jar",    // only used in the Java modality
+				isSigned: false,               // only used in the Java modality
+				serverURL: "php/jsmol.php",  // this is not applied by default; you should set this value explicitly
+				src: null,          // file to load
+				script: null,       // script to run
+				defaultModel: "",   // name or id of a model to be retrieved from a database
+				addSelectionOptions: false,  // to interface with databases
+				debug: false
+			};
+		</script>
+	</head>
+	<body>
+		<script type="text/javascript">
+			jmolApplet0 = Jmol.getApplet("jmolApplet0", Info);
+			//Jmol.script(jmolApplet0,"load 1DUM.pdb; cartoon only; color cartoon monomer; set cartoonFancy on; set antialiasDisplay on; axes on")
+			//Jmol.script(jmolApplet0,"load prot.pdb; cartoon off; spacefill 50%; color amino; set antialiasDisplay on")
+			Jmol.script(jmolApplet0,"load simulation_from_native.pdb; wireframe 0.5; spacefill 0%; color atoms group; set antialiasDisplay on; anim fps 0.2; anim on;")
+			//Jmol.script(jmolApplet0,"load animated_sim.pdb; wireframe 0.6; spacefill 0%; color atoms group; set antialiasDisplay on")
+			//Jmol.script(jmolApplet0,"frame 1; num_frames = getProperty(\"modelInfo.modelCount\"); for (var i = 1; i <= num_frames; i = i+1); var filename = \"movie\"+(\"00000\"+i)[-4][0]+\".jpg\"; write IMAGE 800 600 JPG @filename; frame next; end for");
+			
+			</script>
+		<br>
+		<a href="javascript:Jmol.script(jmolApplet0,'spin on')">spin</a>
+		<a href="javascript:Jmol.script(jmolApplet0,'spin off')">off</a>
+		<button onclick="Jmol.script(jmolApplet0,'anim off; load randomcoil.xyz; wireframe 0.15; spacefill 50%; anim mode loop; anim fps 6; anim on;')">Random Coil</button>&nbsp;<button onclick="Jmol.script(jmolApplet0,'anim off; load polymer.xyz; wireframe 0.15; spacefill 50%; anim mode loop; anim fps 12; anim on;')">Native Structure</button>&nbsp;<button onclick="Jmol.script(jmolApplet0,'frame 1; num_frames = getProperty(\'modelInfo.modelCount\'); for (var i = 1; i <= num_frames; i = i+1); var filename = \'movie\'+(\'00000\'+i)[-4][0]+\'.jpg\'; write IMAGE 800 600 JPG @filename; frame next; end for')">Save Images</button>
+	</body>	</body>
+</html>
