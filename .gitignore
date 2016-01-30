@@ -24,3 +24,6 @@ xcuserdata/
 
 ## Python
 *.pyc
+ProteinViewer/
+.DS_Store
+*.xcodeproj/

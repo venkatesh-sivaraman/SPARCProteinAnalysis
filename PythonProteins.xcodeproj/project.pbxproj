@@ -37,6 +37,7 @@
 		96A448A519C3EADF00C4991A /* aminoacids_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = aminoacids_1.py; sourceTree = "<group>"; };
 		96AA06371A9D79DF00340A38 /* decoy_helpers.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = decoy_helpers.py; sourceTree = "<group>"; };
 		96D2926C1C5B0B5F002E842F /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		96D2926D1C5B124C002E842F /* secondary_structure.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = secondary_structure.py; sourceTree = "<group>"; };
 		96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = sparc_distribution.py; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -77,6 +78,7 @@
 				962521F11C4AA31F00552142 /* random */,
 				9655187E1A2B97A200775578 /* aminoacids.py */,
 				9655187F1A2B9C3E00775578 /* polypeptide.py */,
+				96D2926D1C5B124C002E842F /* secondary_structure.py */,
 			);
 			name = "Model Objects";
 			sourceTree = "<group>";

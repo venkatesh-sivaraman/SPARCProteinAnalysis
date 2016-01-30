@@ -173,9 +173,6 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		selected_conformation = None
 		while application_ret is None and len(probabilities) > 0:
 			selected_conformation = sample_cdf(probabilities)
-			'''if presegment[0].tag > 0 and selected_conformation[0].alpha_zone.distanceto(protein.aminoacids[presegment[0].tag - 1].acarbon) > cutoff_wave:
-				application_ret = None
-			else:'''
 			application_ret = _apply_conformation_recursive(protein, psource, segment_length, presegment, selected_conformation, restore, wave=1, file=file)
 			if application_ret is None:
 				entry = next(i for i in probabilities if i[0] == selected_conformation)
@@ -224,9 +221,6 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		selected_conformation = None
 		while application_ret is None and len(probabilities) > 0:
 			selected_conformation = sample_cdf(probabilities)
-			'''if postsegment[-1].tag < len(protein.aminoacids) - 1 and selected_conformation[-1].alpha_zone.distanceto(protein.aminoacids[postsegment[-1].tag + 1].acarbon) > cutoff_wave:
-				application_ret = None
-			else:'''
 			application_ret = _apply_conformation_recursive(protein, psource, segment_length, postsegment, selected_conformation, restore, wave=2, file=file)
 			if application_ret is None:
 				entry = next(i for i in probabilities if i[0] == selected_conformation)
@@ -269,120 +263,6 @@ def apply_conformation(protein, psource, segment_length, segment, selected_confo
 			return hypotheticals
 		else:
 			return True
-	assert False, "Here?"
-
-
-	begin_offset = end_offset = Point3D.zero()
-
-	for i, residue in enumerate(segment):
-		if restore == True: residue.save()
-		old = residue.acarbon
-		residue.acarbon = selected_conformation[i].alpha_zone
-		if i == 0:
-			begin_offset = residue.acarbon.subtract(old)
-		elif i == len(segment) - 1:
-			end_offset = residue.acarbon.subtract(old)
-		residue.set_axes(selected_conformation[i].x_axis,
-						 selected_conformation[i].y_axis,
-						 selected_conformation[i].z_axis)
-
-	print protein.xyz(escaped=False, highlight=range(segment[0].tag, segment[-1].tag + 1))
-	#Now radiate outward from the selected segment and adjust the neighbor segments' positions.
-	presegment = postsegment = segment
-	begin_bondbreach = 0.0
-	end_bondbreach = 0.0
-	if presegment[0].tag > 0:
-		begin_bondbreach = psource.bond_breach(presegment[0], protein.aminoacids[presegment[0].tag - 1])
-	if postsegment[-1].tag < len(protein.aminoacids) - 1:
-		end_bondbreach = psource.bond_breach(postsegment[-1], protein.aminoacids[postsegment[-1].tag + 1])
-
-	segment_length = 1
-	while (not psource.is_connected(presegment) and presegment[0].tag > 0) or (not psource.is_connected(postsegment) and postsegment[-1].tag < len(protein.aminoacids) - 1):
-		if presegment[0].tag > 0 and not psource.is_connected(presegment):
-			presegment = protein.aminoacids[max(presegment[0].tag - segment_length, 0) : presegment[0].tag]
-			anchors = [AAAnchor.make(protein.aminoacids[presegment[-1].tag + 1], weight=4, hook=-1)]
-			if presegment[0].tag > 0:
-				anchors.append(AAAnchor.make(protein.aminoacids[presegment[0].tag - 1], weight=8, hook=0))
-			#Translate all the amino acids to put them closer to the recently changed segment.
-			#if begin_bondbreach > 1.0:
-			begin_offset = protein.aminoacids[presegment[-1].tag + 1].acarbon.subtract(presegment[-1].acarbon)
-			begin_offset = begin_offset.multiply((begin_offset.magnitude() - random.uniform(2.5, 3.5)) / begin_offset.magnitude())
-			for aa in presegment:
-				aa.acarbon = aa.acarbon.add(begin_offset)
-			#Get the probability list for the segment. It should be sorted by probability.
-			probabilities = []
-			'''if len(anchors) >= 2:
-				if psource.connectivity_possible(anchors[0], anchors[1], segment_length):
-					probabilities = psource.randomcoil_probabilities(presegment, anchors[0], anchors[1])'''
-			if len(probabilities) == 0:
-				probabilities = psource.probabilities(presegment, anchors=anchors, primanchor=0, prior=False)
-			
-			#Sample the cumulative distribution function and execute the change.
-			selected_conformation = sample_cdf(probabilities)
-			for i, residue in enumerate(presegment):
-				'''if i > 0 and i < len(presegment) - 1:
-					new_loc = psource.random_vicinity(selected_conformation[i].alpha_zone, presegment[i].tag, distance=psource.randomization_margin(selected_conformation, presegment))
-					while new_loc.distanceto(protein.aminoacids[residue.tag - 1].acarbon) > 3.5:
-						new_loc = psource.random_vicinity(selected_conformation[i].alpha_zone, presegment[i].tag, distance=psource.randomization_margin(selected_conformation, presegment))
-				else: '''
-				if restore == True: residue.save()
-				new_loc = selected_conformation[i].alpha_zone
-				if i == 0:
-					begin_offset = new_loc.subtract(residue.acarbon)
-				residue.acarbon = new_loc
-				residue.set_axes(selected_conformation[i].x_axis,
-								 selected_conformation[i].y_axis,
-								 selected_conformation[i].z_axis)
-			assert psource.permissions.is_valid(presegment[-1], anchors[0], prior=False), "Invalid orientation for presegment: {} and {} ({})".format(presegment, anchors, anchors[0].tolocal(presegment[0].acarbon))
-			if presegment[0].tag > 0:
-				begin_bondbreach = psource.bond_breach(presegment[0], protein.aminoacids[presegment[0].tag - 1])
-			else:
-				begin_bondbreach = 0.0
-			print protein.xyz(escaped=False, highlight=range(presegment[0].tag, presegment[-1].tag + 1))
-
-		if postsegment[-1].tag < len(protein.aminoacids) - 1 and not psource.is_connected(postsegment):
-			postsegment = protein.aminoacids[postsegment[-1].tag + 1 : min(postsegment[-1].tag + 1 + segment_length, len(protein.aminoacids))]
-
-			anchors = [AAAnchor.make(protein.aminoacids[postsegment[0].tag - 1], weight=4, hook=0)]
-			if postsegment[-1].tag + 1 < len(protein.aminoacids):
-				anchors.append(AAAnchor.make(protein.aminoacids[postsegment[-1].tag + 1], weight=8, hook=-1))
-			#Translate all the amino acids to put them closer to the recently changed segment.
-			#if end_bondbreach > 1.0:
-			end_offset = protein.aminoacids[postsegment[0].tag - 1].acarbon.subtract(postsegment[0].acarbon)
-			end_offset = end_offset.multiply((end_offset.magnitude() - random.uniform(2.5, 3.5)) / end_offset.magnitude())
-			for aa in postsegment:
-				aa.acarbon = aa.acarbon.add(end_offset)
-			#Get the probability list for the segment. It should be sorted by probability.
-			probabilities = []
-			if len(probabilities) == 0:
-				probabilities = psource.probabilities(postsegment, anchors=anchors, primanchor=0, prior=True)
-
-			#Sample the cumulative distribution function and execute the change.
-			selected_conformation = sample_cdf(probabilities)
-
-			for i, residue in enumerate(postsegment):
-				if restore == True: residue.save()
-				new_loc = selected_conformation[i].alpha_zone
-				if i == len(postsegment) - 1:
-					end_offset = new_loc.subtract(residue.acarbon)
-
-				residue.acarbon = new_loc
-				residue.set_axes(selected_conformation[i].x_axis,
-								 selected_conformation[i].y_axis,
-								 selected_conformation[i].z_axis)
-			if postsegment[-1].tag < len(protein.aminoacids) - 1:
-				end_bondbreach = psource.bond_breach(postsegment[-1], protein.aminoacids[postsegment[-1].tag + 1])
-			else:
-				end_bondbreach = 0.0
-			assert psource.permissions.is_valid(postsegment[0], anchors[0]), "Invalid orientation for postsegment: {} and {} ({})".format(postsegment, anchors, anchors[0].tolocal(postsegment[0].acarbon))
-		
-			print protein.xyz(escaped=False, highlight=range(postsegment[0].tag, postsegment[-1].tag + 1))
-	#print protein.xyz(escaped=False, highlight=range(presegment[0].tag, postsegment[-1].tag + 1))
-	if restore == True:
-		hypotheticals = []
-		for aa in protein.aminoacids[presegment[0].tag : postsegment[-1].tag + 1]:
-			hypotheticals.append(aa.hypothetical(aa.restore(), True))
-		return hypotheticals
 
 def folding_iteration(protein, psource, segment_length=1, file=None):
 	"""The backbone of the protein folding simulator. The gist of the algorithm is to choose a random subset of the amino acids in 'protein' (which is a Polypeptide) and move them randomly. The function returns no value, just updates the protein.
@@ -411,47 +291,22 @@ def folding_iteration(protein, psource, segment_length=1, file=None):
 		#Get the probability list for the segment. It should be sorted by probability.
 		probabilities = psource.probabilities(segment)
 		
-		if False: #segment_length < 3 and psource.randomization_margin(None, segment) >= 0.05:
-			cases = []
-			num_tried = 0
-			while num_tried < 5 and len(probabilities) > 0:
-				#Sample the cumulative distribution function and execute the change temporarily.
-				selected_conformation = None
-				application_ret = None
-				while application_ret is None and len(probabilities) > 0:
-					selected_conformation = sample_cdf(probabilities)
-					application_ret = apply_conformation(protein, psource, segment_length, segment, selected_conformation, restore=True, file=file)
-					if application_ret is None:
-						entry = next(i for i in probabilities if i[0] == selected_conformation)
-						probabilities.remove(entry)
-				#assert application_ret is not None, "No valid permissible conformation found from this location."
-				if application_ret is not None:
-					cases.append(application_ret)
-				num_tried += 1
-			#Now create a new CDF based on the cases collected above and sample that to determine the new locations.
-			newprobabilities = psource.cdf_from_hypotheticals(cases)
-			selected_conformation = sample_cdf(newprobabilities)
-			for i, residue in enumerate(protein.aminoacids[selected_conformation[0].tag : selected_conformation[-1].tag + 1]):
-				residue.acarbon = selected_conformation[i].acarbon
-				residue.set_axes(selected_conformation[i].i,
-								 selected_conformation[i].j,
-								 selected_conformation[i].k)
-		else:
-			#Sample the cumulative distribution function once and execute the change.
-			selected_conformation = None
-			application_ret = None
-			while application_ret is None and len(probabilities) > 0:
-				selected_conformation = sample_cdf(probabilities)
-				application_ret = apply_conformation(protein, psource, segment_length, segment, selected_conformation, file=file)
-				if application_ret is None:
-					entry = next(i for i in probabilities if i[0] == selected_conformation)
-					probabilities.remove(entry)
-			#assert application_ret is not None, "No valid permissible conformation found from this location."
-			reset_stats()
+		#Sample the cumulative distribution function once and execute the change.
+		selected_conformation = None
+		application_ret = None
+		while application_ret is None and len(probabilities) > 0:
+			selected_conformation = sample_cdf(probabilities)
+			application_ret = apply_conformation(protein, psource, segment_length, segment, selected_conformation, file=file)
 			if application_ret is None:
-				for aa in protein.aminoacids:
-					aa.restore()
-				return
+				entry = next(i for i in probabilities if i[0] == selected_conformation)
+				probabilities.remove(entry)
+		#assert application_ret is not None, "No valid permissible conformation found from this location."
+		reset_stats()
+		if application_ret is None:
+			for aa in protein.aminoacids:
+				aa.restore()
+			return
+
 	violated = False
 	for aa in protein.aminoacids:
 		if len(protein.nearby_aa(aa, psource.steric_cutoff, consec=False, mindiff=psource.steric_consec_diff)) > 0:

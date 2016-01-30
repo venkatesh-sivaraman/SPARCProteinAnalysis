@@ -1,6 +1,7 @@
 from proteinmath import *
 from aminoacids import *
 from randomcoil import *
+from secondary_structure import *
 import os.path
 import string
 
@@ -10,6 +11,7 @@ class Polypeptide(object):
 	def __init__(self, preaas=None):
 		self.hashtable = AAHashTable()
 		self.aminoacids = []
+		self.secondary_structures = []
 		if preaas:
 			for i, aa in enumerate(preaas):
 				aa = aa.withtag(i)
@@ -99,7 +101,7 @@ class Polypeptide(object):
 		for aa in self.aminoacids:
 			aa.acarbon = aa.acarbon.subtract(center)
 
-	def read_file(self, f, checkgaps=False, otheratoms=False):
+	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False):
 		"""Pass in a file or file-like object to read. Set checkgaps to True to return a True value (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
 		foundgap = False
 		current_aa = None
@@ -108,6 +110,10 @@ class Polypeptide(object):
 		current_tag = -1
 		minseq = 100000
 		maxseq = -10000
+		if secondary_structure:
+			self.secondary_structures = []
+			current_sheet = None
+		
 		for line in f:
 			if line.find('ENDMDL') != -1:	#Only keep one model for each polypeptide
 				if current_aa is not None and len(self.aminoacids) > 0 and current_aa.acarbon == Point3D.zero():
@@ -118,6 +124,29 @@ class Polypeptide(object):
 					if current_aa.i == Point3D.zero() and len(self.aminoacids) > 0:
 						self.aminoacids.pop()
 				break
+		
+			if secondary_structure:
+				if line.find('HELIX') == 0:
+					start_seq = int(line[22:26])
+					end_seq = int(line[34:38])
+					type = int(line[39:41])
+					chain_start = line[19]
+					chain_end = line[31]
+					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
+					self.secondary_structures.append(Helix(start_seq, end_seq, type))
+				elif line.find('SHEET') == 0:
+					sense = int(line[38:40])
+					start_seq = int(line[23:26])
+					end_seq = int(line[34:37])
+					chain_start = line[21]
+					chain_end = line[32]
+					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
+					if not current_sheet or sense == 0:
+						if current_sheet:
+							self.secondary_structures.append(current_sheet)
+						current_sheet = Sheet(start_seq, end_seq, sense)
+					else:
+						current_sheet.add_strand(start_seq, end_seq, sense)
 
 			if line.find('ATOM') != 0: continue
 			if line[17:20] == "SOL": break		#There are no more amino acids after the solvent molecules start
@@ -128,8 +157,12 @@ class Polypeptide(object):
 				current_aa.has_break = True
 			if chain is not current_chain or current_seq != seq:
 				current_chain = chain
-				if checkgaps and seq - current_seq > 1:
-					foundgap = True
+				if seq - current_seq > 1:
+					if checkgaps: foundgap = True
+					if fillgaps:
+						while seq != current_seq:
+							self.aminoacids.append(None)
+							current_seq += 1
 				current_seq = seq
 				if current_seq < minseq: minseq = current_seq
 				if current_seq > maxseq: maxseq = current_seq
@@ -165,16 +198,21 @@ class Polypeptide(object):
 			self.aminoacids.pop()
 		
 		self.hashtable = AAHashTable()
-		for aa in self.aminoacids: self.hashtable.add(aa)
-		
+		for aa in self.aminoacids:
+			if aa: self.hashtable.add(aa)
+
+		if secondary_structure:
+			if current_sheet:
+				self.secondary_structures.append(current_sheet)
+
 		if checkgaps is True:
 			return (foundgap, (minseq, maxseq))
 		else:
 			return (minseq, maxseq)
 
-	def read(self, filepath, checkgaps=False, otheratoms=False):
-		"""Set checkgaps to True to return a True value (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
+	def read(self, filepath, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False):
+		"""Set checkgaps to True to return a True value (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids). Set secondary_structure to True to populate the secondary_structures array of the protein with Helix and Sheet objects. Set fillgaps to True to fill the peptide amino acids array with None objects wherever there is a gap."""
 		f = open(filepath, 'r')
-		ret = self.read_file(f, checkgaps, otheratoms)
+		ret = self.read_file(f, checkgaps, otheratoms, secondary_structure, fillgaps)
 		f.close()
 		return ret

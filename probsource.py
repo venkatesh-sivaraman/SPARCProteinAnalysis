@@ -230,11 +230,6 @@ class AAProbabilitySource(ProbabilitySource):
 		self.distributions = distributions
 		self.permissions = permissions
 		def distance_weight(conformation, aminoacids=[], proximity=0.01):
-			'''distance = sum(conformation[i].alpha_zone.distanceto(aminoacids[i].acarbon) for i in xrange(len(aminoacids))) / len(aminoacids)
-			if proximity == 0.0: proximity = 0.01
-			return max(0.0, -distance / proximity + 1.0)'''
-			#return 1.0 / key(conformation).alpha_zone.distanceto(aminoacid.acarbon)
-			#Updated 2/21/15 to use a new formula with the randomization margin
 			a = 100.0
 			b = math.atan(a * proximity) + math.pi / 2.0
 			c = 0.5 * math.pi / b
@@ -272,8 +267,7 @@ class AAProbabilitySource(ProbabilitySource):
 					d = AminoAcid.clocation(conformation[anchor.hook]).distanceto(anchor.nitrogen)
 				else:
 					d = conformation[anchor.hook].alpha_zone.distanceto(anchor.acarbon)
-				'''if anchor.hook == 0 or anchor.hook == -1:
-					weight /= (d * anchor.weight / 1.5) ** 2'''
+
 				if anchor.hook == 0 and d > 1.5:
 					target = anchor.carbon
 					d = conformation[0].y_axis.multiply(-1.0).add(conformation[0].alpha_zone).distanceto(target) - conformation[0].alpha_zone.distanceto(target)
@@ -300,8 +294,6 @@ class AAProbabilitySource(ProbabilitySource):
 		else:				aa = aminoacids[-1]
 		allowed_conformations = self.permissions.allowed_conformations(aa, anchor, prior)
 		for pz in allowed_conformations:
-			#print prior, anchor.tolocal(pz.alpha_zone)
-			#if pz.x_axis.distanceto(aa.i) >= 0.4: continue
 			if len(aminoacids) > 1:
 				conformation = rotate_segment_anchor(aminoacids, pz, prior)
 			else:
@@ -312,12 +304,7 @@ class AAProbabilitySource(ProbabilitySource):
 			else:
 				if len(aminoacids) == 1 and conformation[-1].x_axis.distanceto(aminoacids[-1].i) > proximity: continue
 				elif conformation[0].alpha_zone.distanceto(aminoacids[0].acarbon.subtract(aminoacids[-1].acarbon).add(conformation[-1].alpha_zone)) > proximity * 3.0: continue
-			'''if prior is True and aminoacids[-1].tag < len(self.protein.aminoacids) - 1:
-				target = self.protein.aminoacids[aminoacids[-1].tag + 1].nitrogen
-				if conformation[-1].y_axis.add(conformation[-1].alpha_zone).distanceto(target) > conformation[-1].alpha_zone.distanceto(target) - 0.6: continue
-			elif prior is False and aminoacids[0].tag > 0:
-				target = self.protein.aminoacids[aminoacids[0].tag - 1].nitrogen
-				if conformation[0].y_axis.multiply(-1.0).add(conformation[0].alpha_zone).distanceto(target) > conformation[0].alpha_zone.distanceto(target) - 0.6: continue'''
+
 			valid = True
 			for i, pz in enumerate(conformation):
 				if len(self.protein.nearby_aa(aminoacids[i].hypothetical(pz), self.steric_cutoff, consec=False, mindiff=self.steric_consec_diff, excluded=[aa.tag for aa in aminoacids])) > 0:
@@ -371,10 +358,6 @@ class AAProbabilitySource(ProbabilitySource):
 					if self.mode != psource_gentle_mode or score < current_score:
 						probabilities.append([conformation, score_to_probability(score / len(hypotheticals))])
 					del hypotheticals[:]
-			'''if prior is True:
-				apply_weight(probabilities, partial(self.weights["distance"], key=lambda x: x[-1], aminoacid=aminoacids[-1], proximity=proximity * 2.0))
-			else:
-				apply_weight(probabilities, partial(self.weights["distance"], key=lambda x: x[0], aminoacid=aminoacids[0], proximity=proximity * 2.0))'''
 		else:
 			current_score = sum(d.score(self.protein, aminoacids) for d in self.distributions if d.type != distributions.frequency_consec_disttype)
 			for conformation in self.iter_ensemble_alpha(aminoacids, proximity, step=step):
@@ -391,17 +374,6 @@ class AAProbabilitySource(ProbabilitySource):
 		apply_weight(probabilities, partial(self.weights["anchor"], anchors=anchors, negweight=proximity))
 
 		probabilities = [x for x in probabilities if x[1] > 0.0]
-		'''for conf, prob in probabilities:
-			for i in xrange(len(aminoacids)):
-				aminoacids[i].save()
-				aminoacids[i].acarbon = conf[i].alpha_zone
-				aminoacids[i].set_axes(conf[i].x_axis, conf[i].y_axis, conf[i].z_axis)
-			print self.protein.xyz(escaped = False)
-			for aa in aminoacids: aa.restore()'''
-		#if len(aminoacids) > 1:
-		#for conf, prob in probabilities:
-		#	hyp = [aminoacids[i].hypothetical(conf[i]) for i in xrange(len(aminoacids))]
-		#	print sum(d.score(self.protein, hyp) for d in self.distributions), prob
 		if len(probabilities) == 0 and "primanchor" not in kwargs:
 			probabilities.append([[PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in aminoacids], score_to_probability(current_score / len(aminoacids))])
 		return to_cdf(sorted(probabilities, key=lambda x: x[1]))
@@ -417,15 +389,11 @@ class AAProbabilitySource(ProbabilitySource):
 					last = start
 				confs = self.permissions.allowed_conformations(aminoacids[-1], last)
 				random.shuffle(confs)
-				#I'm using a constant number here to save on performance. Only 10 of the given conformations will be chosen, which still gives a total of 10^n iterations.
-				#if len(confs) > 30 and len(aminoacids) > 1:
-				#	confs = random.sample(confs, 30)
 				confs2 = self.permissions.allowed_conformations(aminoacids[-1], end, prior=False)
 				random.shuffle(confs2)
 				for pz in confs:
 					for pz2 in confs2:
 						if pz2.alpha_zone.distanceto(pz.alpha_zone) > 0.5: continue
-						#if pz2.x_axis.distanceto(pz.x_axis) > 0.1: continue
 						pz = PositionZone(pz.alpha_zone.add(pz2.alpha_zone).multiply(0.5),
 										  pz.x_axis, pz.y_axis, pz.z_axis)
 						hyp = aminoacids[-1].hypothetical(pz)
@@ -472,32 +440,13 @@ class AAProbabilitySource(ProbabilitySource):
 		"""Pass in an array of amino acids, a start anchor amino acid (not included in aminoacids), and an end anchor amino acid. Each entry in the returned probability distribution will be a permissible SAW from start to end. If no permissible SAW is found that connects start and end, this method will return no probabilities, in which case you should use probabilities() instead."""
 		probabilities = []
 		current_score = sum(d.score(self.protein, aminoacids) for d in self.distributions)
-		#print aminoacids[0].tag, aminoacids[-1].tag, start.tag, end.tag
+
 		for conformation in self._iter_permissible_randomcoils(aminoacids, start, end):
 			hypotheticals = [aminoacids[i].hypothetical(conformation[i]) for i in xrange(len(aminoacids))]
 			probabilities.append([conformation, score_to_probability(sum(d.score(self.protein, hypotheticals) for d in self.distributions))])
 			del hypotheticals[:]
-		#print len(probabilities), "probabilities for random coil", len(aminoacids), start.acarbon.distanceto(end.acarbon)
-		'''segment_distance = aminoacids[0].acarbon.distanceto(aminoacids[-1].acarbon)
-		for startzone in self.permissions.allowed_zones[aacode(start.type)][aacode(aminoacids[0].type)]:
-			if startzone.y < 0.0: continue
-			startzone = startzone.add(Point3D(0.5, 0.5, 0.5))
-			globalstart = start.toglobal(startzone)
-			for endzone in self.permissions.allowed_zones[aacode(end.type)][aacode(aminoacids[-1].type)]:
-				if endzone.y >= 0.0: continue
-				endzone = endzone.add(Point3D(0.5, 0.5, 0.5))
-				globalend = end.toglobal(endzone)
-				d = globalstart.distanceto(globalend)
-				scaled_end = globalend.subtract(globalstart).multiply(segment_distance / d).add(globalstart)
-				if scaled_end.distanceto(globalend) > 0.5: continue
-				conformation = rotate_segment(aminoacids, globalstart, scaled_end)
-				
-				hypotheticals = [aminoacids[i].hypothetical(conformation[i]) for i in xrange(len(aminoacids))]
-				probabilities.append([conformation, score_to_probability(sum(d.score(self.protein, hypotheticals) for d in self.distributions))])
-				del hypotheticals[:]'''
+
 		apply_weight(probabilities, partial(self.weights["comparison"], currentprob=score_to_probability(current_score)), passprob=True)
-		#for conf, prob in probabilities:
-		#	print repr([aminoacids[i].hypothetical(conf[i]) for i in xrange(len(aminoacids))]), prob
 		probabilities = [x for x in probabilities if x[1] > 0.0]
 		if len(probabilities) == 0:
 			return []
@@ -510,17 +459,15 @@ class AAProbabilitySource(ProbabilitySource):
 		current_score = sum(d.score(self.protein, [aminoacid]) for d in self.distributions)
 		proximity = max(self._randomization_margin(current_score), 0.001)
 		step = proximity
-		#print "Now:", str(PositionZone(aminoacid.acarbon, aminoacid.i, aminoacid.j, aminoacid.k)), current_score
 		for conformation in self.iter_ensemble_axis(aminoacid, proximity=proximity, step=step):
-			#print repr(conformation[0].x_axis), repr(conformation[0].y_axis), repr(conformation[0].z_axis)
 			hypothetical = aminoacid.hypothetical(conformation[0])
 			probabilities.append([conformation, score_to_probability(sum(d.score(self.protein, [hypothetical]) for d in self.distributions))])
+		
 		probabilities.append([[PositionZone(aminoacid.acarbon, aminoacid.i, aminoacid.j, aminoacid.k)], score_to_probability(current_score)])
 		apply_weight(probabilities, partial(self.weights["distance"], aminoacids=[aminoacid]))
 		apply_weight(probabilities, partial(self.weights["angle_distance"], aminoacid=aminoacid))
 		apply_weight(probabilities, partial(self.weights["comparison"], currentprob=score_to_probability(current_score)), passprob=True)
-		#for conf, prob in probabilities:
-		#	print str(conf[0]), prob
+
 		probabilities = [x for x in probabilities if x[1] > 0.0]
 		if len(probabilities) == 0:
 			probabilities.append([[PositionZone(aminoacid.acarbon, aminoacid.i, aminoacid.j, aminoacid.k)], score_to_probability(current_score)])
@@ -529,16 +476,8 @@ class AAProbabilitySource(ProbabilitySource):
 	def connectivity_possible(self, start, end, numaa):
 		"""Pass in AminoAcid objects for start and end, and an int for numaa. This function will determine whether it is possible to build a permissible SAW from start to end using numaa amino acids. Note that a True return value does not guarantee the existence of a permissible SAW, but a False value does guarantee the non-existence of one.
 			Updated 2/22/15: This method returns FALSE if the segment is at either end of the chain. It does so to notify folding simulators that they can use normal pivoting procedures to determine the location of this segment."""
-		'''if start.tag < end.tag:
-			total_distance = start.carbon.distanceto(end.nitrogen)
-		else:
-			total_distance = end.carbon.distanceto(start.nitrogen)
-		max_distance = math.sqrt(CARBON_BOND_LENGTH ** 2 + NITROGEN_BOND_LENGTH ** 2 + 2.0 / 3.0 * CARBON_BOND_LENGTH * NITROGEN_BOND_LENGTH) * numaa # + 1.4 * (numaa + 1)
-		if max_distance < total_distance:
-			return False
-		else:
-			return True'''
-		#Updated 2/22/15 to use a new method. Instead, we will check if the distance between start and end is at an acceptable level relative to the distance between their outer neighbors.
+
+		#Updated 2/22/15 to use a new method. We will check if the distance between start and end is at an acceptable level relative to the distance between their outer neighbors.
 		if start.tag == 0 or end.tag == len(self.protein.aminoacids) - 1:
 			return False
 		else:
@@ -621,8 +560,6 @@ class AAProbabilitySource(ProbabilitySource):
 	def _randomization_margin(self, score):
 		"""This function yields 0 for a score of -25, and 0.1 for a score of 5.
 			Updated 2/13/15: this function yields 0 for a score of -180, and 0.4 for a score of -50."""
-		#return max(0.0, 1.0 / 300.0 * score + 1.0 / 12.0)
-		#return max(0.0, 1.0 / 600.0 * (score + 90.0))
 		if self.mode == psource_gentle_mode:
 			return 10.8 ** (score / 40.0)
 		else:
@@ -635,7 +572,6 @@ class AAProbabilitySource(ProbabilitySource):
 		else:
 			hypotheticals = aminoacids
 		score = sum(d.score(self.protein, hypotheticals) for d in self.distributions)
-		#(-25, 0), (5, 0.1)
 		return self._randomization_margin(score)
 
 	def bond_breach(self, aa1, aa2):

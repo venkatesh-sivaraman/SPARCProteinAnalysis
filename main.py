@@ -413,7 +413,7 @@ if __name__ == '__main__':
 	#supplement_natives("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp")
 	#tm_sparc_correlation("/Volumes/External Hard Drive/Science Fair 2014-15/decoy-tm", "/Volumes/External Hard Drive/Science Fair 2014-15/decoy-scores")
 	#permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Desktop/sciencefair/allowed-zones")
-	func()
+	#func()
 	#w = [9,4,3]
 	'''print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/4state_reduced", w)
 	print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/fisa_casp3", w)
@@ -433,3 +433,6 @@ if __name__ == '__main__':
 	#analysis()
 	#average_coordination_number("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/medium")
 	#batch_compare_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/tasser-decoys", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/solvated_comparison.txt")
+	pep = Polypeptide()
+	pep.read("/Users/venkatesh-sivaraman/Documents/Xcode Projects/PythonProteins/ProteinViewer/1QLQ.pdb", secondary_structure=True)
+	print pep.secondary_structures
