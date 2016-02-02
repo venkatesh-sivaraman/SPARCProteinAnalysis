@@ -39,13 +39,13 @@ class FrequencyDistributionManager(DistributionManager):
 		self.axis_regressions = {}	#Format - key: alpha zone, value: [h1, k1, a1, h2, k2, a2] for quadratic model with 1 = x-axis, 2 = y-axis
 		self.axis_frequencies = [[{} for i in xrange(AMINO_ACID_COUNT)] for i in xrange(AMINO_ACID_COUNT)]
 		self.median_frequencies = [[0 for i in xrange(AMINO_ACID_COUNT)] for i in xrange(AMINO_ACID_COUNT)]
-		print "Loading {}...".format(self)
+		print "Loading..."
 		a = datetime.datetime.now()
 		self.load_rankings(rankings_path)
 		self.load_frequencies(frequencies_path)
 		self.load_axis_regressions(axisradii_path)
 		b = datetime.datetime.now()
-		print "Loaded {0} in {1:.4f} sec.".format(self, (b - a).total_seconds())
+		print "Loaded in {1:.4f} sec.".format(self, (b - a).total_seconds())
 		self.weight = 1.0
 		self.type = frequency_disttype
 		self.defaultvalue = 0

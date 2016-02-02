@@ -2,6 +2,8 @@ from aminoacids import *
 import os
 from os.path import join
 import random
+from numpy import random as nprand
+from secondary_structure import *
 
 def _compute_bounds(p, mag):
 	''' 1. x = p.x
@@ -181,3 +183,66 @@ class AAPermissionsManager(PermissionsManager):
 				return False
 		else:
 			return False
+
+class AASecondaryStructurePermissionsManager(PermissionsManager):
+	"""AASecondaryStructurePermissionsManager is a concrete subclass of PermissionsManager that manages the allowed orientations for helices and sheets."""
+	
+	def __init__(self, source):
+		"""For source, pass in a directory of files (one for each secondary structure type) specifying the allowed FULL position zones for that type of structure."""
+		super(AASecondaryStructurePermissionsManager, self).__init__()
+		self.allowed_zones = {
+			secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+			secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+			secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+			secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+			secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+			secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+			secondary_struct_sheet + "-1" : {}
+		}
+		self.load_permissions_data(source)
+
+	def load_permissions_data(self, source):
+		paths = os.listdir(source)
+		for path in paths:
+			if ".txt" not in path: continue
+			structure_type = path[:-4]
+			del self.allowed_zones[structure_type]
+			self.allowed_zones[structure_type] = {}
+			total_freq = 0
+			with open(join(source, path), 'r') as file:
+				for line in file:
+					pz = read_pz(line)
+					freq = int(line.split(";")[-1])
+					self.allowed_zones[structure_type][pz] = freq
+					total_freq += freq
+			for pz in self.allowed_zones[structure_type]:
+				self.allowed_zones[structure_type][pz] = self.allowed_zones[structure_type][pz] / float(total_freq)
+
+	def allowed_conformations(self, aminoacid, reference_aa, structure_type, subtype, size=10):
+		"""This overridden function accepts an amino acid whose allowed position zones are requested, and a reference_aa (prior amino acid) to which the amino acid's position should be favorable. The structure_type and subtype can be obtained from the secondary structure and strand objects in the protein. Return values are position zones in the global coordinate system."""
+		info_key = structure_type + str(subtype)
+		if info_key not in self.allowed_zones:
+			print "Secondary structure type", info_key, "not supported."
+			return []
+		data = self.allowed_zones[info_key].items()
+		if len(data) == 0:
+			print "No data available for secondary structure type", info_key
+			return []
+
+		#Generate a random sample of the allowed zones.
+		zones = nprand.choice([x[0] for x in data], size, replace=True, p=[x[1] for x in data])
+		print aminoacid.tag, structure_type, subtype
+		for z in zones:
+			z.alpha_zone = z.alpha_zone.random_vicinity(distance=0.2)
+			axes = random_vicinity_axes(z)
+			z.x_axis = axes[0]
+			z.y_axis = axes[1]
+			z.z_axis = axes[2]
+		zones = [reference_aa.globalpz(z) for z in zones]
+		return zones
+			
+
+	def is_valid(self, aminoacid, reference_aa, prior=True):
+		"""This function is not defined for secondary structure permissions managers."""
+		print "is_valid is not defined for secondary structure permissions managers"
+		return True

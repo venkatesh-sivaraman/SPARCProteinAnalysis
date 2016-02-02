@@ -187,21 +187,6 @@ class ProbabilitySource(object):
 		segment = self.protein.aminoacids[random_start : random_start + segment_length]
 		return segment
 
-	def random_vicinity(self, point, tag, distance=0.1):
-		"""This helper function returns a random point within a cube of side distance * 2 centered at point."""
-		point = Point3D(random.uniform(point.x - distance, point.x + distance),
-						random.uniform(point.y - distance, point.y + distance),
-						random.uniform(point.z - distance, point.z + distance))
-		return point
-	
-	def random_vicinity_axes(self, conformation, distance=0.01):
-		if math.fabs(distance) <= 0.0001: return (conformation.x_axis, conformation.y_axis, conformation.z_axis)
-		i = self.random_vicinity(conformation.x_axis, distance).normalize()
-		j = Point3D(random.uniform(conformation.y_axis.x - distance, conformation.y_axis.x + distance), random.uniform(conformation.y_axis.y - distance, conformation.y_axis.y + distance), 0.0)
-		j.z = -(i.x * j.x + i.y * j.y) / i.z
-		k = crossproduct(i, j)
-		return (i, j.normalize(), k.normalize())
-
 	def cdf_from_hypotheticals(self, cases):
 		"""This convenience method for folding simulators creates a cdf by evaluating the score function for each array of hypothetical amino acids in 'cases'. IMPORTANT: This method's returned probabilities have amino acid hypotheticals as members, not PositionZones."""
 		probabilities = []
@@ -515,30 +500,49 @@ class AAProbabilitySource(ProbabilitySource):
 
 	def choose_segment(self, segment_length):
 		#First we have to cluster out the chain into groups that have similarly stable consecutive scores.
-		clusters = [[0, 0, 0]]
-		ranges = []
+		clusters = [[0, 0, 0, 100000, -100000]] #Start, end, total/avg score, min score, max score
 		cluster_range = [0.0, 0.0]
 		min_bound = 0.9
 		max_bound = 1.1
 		for i, aa in enumerate(self.protein.aminoacids):
-			#assert aa.localscore != 0.0, "The amino acid {} was mutated and the local score not updated before calling choose_segment.".format(aa)
 			if aa.localscore == 0.0:
 				aa.localscore = sum(d.score(self.protein, [aa]) for d in self.distributions)
+		
+			#Find a secondary structure if this amino acid is in one
+			current_struct = None
+			struct_info = self.protein.secondary_structure_aa(i)
+			if struct_info:
+				current_struct = struct_info[1]
+			
+			def matches_score(ls, clus_r):
+				return ls >= clus_r[0] and ls <= clus_r[1] and ls <= -125.0
+			
 			if clusters[-1][1] == 0:
 				clusters[-1][1] += 1
 				clusters[-1][2] += aa.localscore
-				cluster_range[0] = min(aa.localscore * min_bound, aa.localscore * max_bound)
-				cluster_range[1] = max(aa.localscore * min_bound, aa.localscore * max_bound)
-				ranges.append([cluster_range[0], cluster_range[1]])
-			elif aa.localscore >= cluster_range[0] and aa.localscore <= cluster_range[1] and aa.localscore <= -125.0:
+				clusters[-1][3] = aa.localscore
+				clusters[-1][4] = aa.localscore
+			elif current_struct:
+				if current_struct.start == i and not matches_score(aa.localscore, cluster_range):
+					clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
+					clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
+				else:
+					clusters[-1][1] += 1
+					clusters[-1][2] += aa.localscore
+				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
+				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore
+			elif matches_score(aa.localscore, cluster_range):
 				clusters[-1][1] += 1
 				clusters[-1][2] += aa.localscore
+				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
+				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore
 			else:
 				clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
-				clusters.append([i, i + 1, aa.localscore])
-				cluster_range[0] = min(aa.localscore * min_bound, aa.localscore * max_bound)
-				cluster_range[1] = max(aa.localscore * min_bound, aa.localscore * max_bound)
-				ranges.append([cluster_range[0], cluster_range[1]])
+				clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
+			cluster_range[0] = min(clusters[-1][3] * min_bound, clusters[-1][4] * max_bound)
+			cluster_range[1] = max(clusters[-1][3] * min_bound, clusters[-1][3] * max_bound)
+			
+		clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
 		print "---", len(clusters), "clusters for", len(self.protein.aminoacids), "amino acids"
 		for clust in clusters:
 			tupcluster = (clust[0], clust[1])

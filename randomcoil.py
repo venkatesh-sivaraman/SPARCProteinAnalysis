@@ -1,6 +1,7 @@
 from aminoacids import *
 import random
 from permissions import *
+from secondary_structure import *
 
 def random_axes(previous_aa):
 	if previous_aa is None:
@@ -20,8 +21,8 @@ def random_axes(previous_aa):
 		k = crossproduct(i, j)
 		return (i.normalize(), j.normalize(), k.normalize())
 
-def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0):
-	'''This function generates a self-avoiding random walk in 3D space.'''
+def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary_structures=None, struct_permissions=None):
+	'''This function generates a self-avoiding random walk in 3D space. If you pass a secondary_structures array and a AASecondaryStructurePermissionsManager object, the helices and sheets will be created using random relative orientations dictated by the permissions.'''
 	current_pt = Point3D(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0))
 	last_aa = None
 	allaa = []
@@ -33,21 +34,36 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0):
 		if last_aa is not None:
 			#Choose a point to the right of the amino acid
 			idx = 0
-			while len(hashtable.nearby_aa(aminoacid, steric_cutoff, consec=False)) > 0 or last_aa.acarbon.distanceto(current_pt) <= 2.0:
-				if idx == 100: return generate_randomcoil(sequence, permissions)
-				#print i, str(current_pt), hashtable.nearby_aa(aminoacid, 2.0, consec=False)
-				if permissions == None:
-					current_pt = last_aa.toglobal(Point3D(random.uniform(3.0, 3.5), random.uniform(bondangle - 0.2, bondangle + 0.2), random.uniform(bondangle - 0.2, bondangle + 0.2)).tocartesian())
-				else:
-					candidates = permissions.allowed_conformations(aminoacid, last_aa)
-					if not len(candidates):
-						print "No permissible candidates"
-						continue
-					zone = random.choice(candidates)
-					current_pt = zone.alpha_zone
-					axes = (zone.x_axis, zone.y_axis, zone.z_axis)
+			while len(hashtable.nearby_aa(aminoacid, steric_cutoff, consec=False)) > 0 or last_aa.acarbon.distanceto(current_pt) <= steric_cutoff:
+				if idx == 100: return generate_randomcoil(sequence, permissions, steric_cutoff, secondary_structures, struct_permissions)
+				
+				completed = False
+				if secondary_structures and struct_permissions:
+					sec_struct = find_secondary_structure(secondary_structures, i)
+					if sec_struct and i > sec_struct[1].start:
+						candidates = struct_permissions.allowed_conformations(aminoacid, last_aa, sec_struct[0].type, sec_struct[1].identifiers[0])
+						if not len(candidates):
+							print "No permissible candidates with secondary structure"
+						else:
+							zone = random.choice(candidates)
+							current_pt = zone.alpha_zone
+							axes = (zone.x_axis, zone.y_axis, zone.z_axis)
+							completed = True
+				if not completed:
+					if permissions == None:
+						current_pt = last_aa.toglobal(Point3D(random.uniform(3.0, 3.5), random.uniform(bondangle - 0.2, bondangle + 0.2), random.uniform(bondangle - 0.2, bondangle + 0.2)).tocartesian())
+					else:
+						candidates = permissions.allowed_conformations(aminoacid, last_aa)
+						if not len(candidates):
+							print "No permissible candidates"
+							continue
+						zone = random.choice(candidates)
+						current_pt = zone.alpha_zone
+						axes = (zone.x_axis, zone.y_axis, zone.z_axis)
+						completed = True
 				aminoacid.acarbon = current_pt
 				idx += 1
+				if completed: break
 		if permissions == None or len(axes) == 0:
 			axes = random_axes(last_aa)
 		aminoacid.set_axes(*axes, normalized=False)

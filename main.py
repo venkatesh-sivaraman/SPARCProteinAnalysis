@@ -166,15 +166,30 @@ def test_sparc(input, output):
 
 def simulate_fold(dists):
 	permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/permissions")
+	sec_struct_permissions = AASecondaryStructurePermissionsManager("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/secondary")
 	peptide = Polypeptide()
-	peptide.read("/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb")
-	#peptide.randomcoil("RPDFCLEPPYAGACRARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCLRTCGGA", permissions) #"GRYRRCIPGMFRAYCYMD" (2LWT - GRY...MD, 2MDB - KWC...CR, 1QLQ - RPDF...GGA)
+	#peptide.read("/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb")
+	peptide.add_secondary_structures("HELIX    1   1 PRO A    2  GLU A    7  5                                   6\nHELIX    2   2 SER A   47  GLY A   56  1                                  10\nSHEET    1   A 2 ILE A  18  ASN A  24  0\nSHEET    2   A 2 LEU A  29  TYR A  35 -1  N  TYR A  35   O  ILE A  18", format='pdb')
+	peptide.randomcoil("RPDFCLEPPYAGACRARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCLRTCGGA", permissions=permissions, struct_permissions=sec_struct_permissions) #"GRYRRCIPGMFRAYCYMD" (2LWT - GRY...MD, 2MDB - KWC...CR, 1QLQ - RPDF...GGA)
+	print peptide.secondary_structures
 	#"KWCFRVCYRGICYRRCR"
 	#"TTCCPSIVARSNFNVCRLPGTPSEALICATYTGCIIIPGATCPGDYAN"
 	peptide.center()
-	file = open("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/simulation_from_native.pdb", 'w')
+	file = open("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/simulation_test.pdb", 'w')
 	#file.write(peptide.xyz(escaped=False))
 	scores = [sum(dist.score(peptide, peptide.aminoacids) for dist in dists)]
+	consec_dist = next((dist for dist in dists if dist.type == frequency_consec_disttype), None)
+	for sec_struct in peptide.secondary_structures:
+		print sec_struct
+		for strand in sec_struct.strands:
+			last_aa = peptide.aminoacids[strand.start]
+			for i in xrange(strand.start + 1, strand.end):
+				aa = peptide.aminoacids[i]
+				locs = sec_struct_permissions.allowed_conformations(aa, last_aa, sec_struct.type, strand.identifiers[0])
+				print last_aa
+				for loc in locs:
+					print i, aacode(last_aa.type), aacode(aa.type), last_aa.tolocal(loc.alpha_zone).floor(), consec_dist.alpha_frequency(aacode(last_aa.type), aacode(aa.type), last_aa.tolocal(loc.alpha_zone).floor())
+				last_aa = aa
 	print scores[-1], "Avg:", scores[-1] / len(peptide.aminoacids)
 	file.write(peptide.pdb(modelno=1))
 	
@@ -185,7 +200,7 @@ def simulate_fold(dists):
 	best_scores = [1000 for i in xrange(model_count)]
 	pdb_model_idx = 2
 	a = datetime.datetime.now()
-	for i in xrange(5000):
+	for i in xrange(2500):
 		seglen = segment_length(scores[-1] / len(peptide.aminoacids))
 		folding.folding_iteration(peptide, prob, seglen)
 		center = Point3D.zero()
@@ -200,7 +215,7 @@ def simulate_fold(dists):
 			curscore += aa.localscore
 		scores.append(curscore)
 		print i, scores[-1] / len(peptide.aminoacids)
-		if scores[-1] / len(peptide.aminoacids) < -120.0:
+		if scores[-1] / len(peptide.aminoacids) <= -100.0:
 			#file.write(peptide.xyz(escaped=False))
 			file.write(peptide.pdb(modelno=pdb_model_idx))
 			pdb_model_idx += 1
@@ -413,7 +428,7 @@ if __name__ == '__main__':
 	#supplement_natives("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp")
 	#tm_sparc_correlation("/Volumes/External Hard Drive/Science Fair 2014-15/decoy-tm", "/Volumes/External Hard Drive/Science Fair 2014-15/decoy-scores")
 	#permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Desktop/sciencefair/allowed-zones")
-	#func()
+	func()
 	#w = [9,4,3]
 	'''print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/4state_reduced", w)
 	print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/fisa_casp3", w)
@@ -433,6 +448,4 @@ if __name__ == '__main__':
 	#analysis()
 	#average_coordination_number("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/medium")
 	#batch_compare_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/tasser-decoys", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/solvated_comparison.txt")
-	pep = Polypeptide()
-	pep.read("/Users/venkatesh-sivaraman/Documents/Xcode Projects/PythonProteins/ProteinViewer/1QLQ.pdb", secondary_structure=True)
-	print pep.secondary_structures
+	#trim_secondary_structure_pzs("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/secondary_structures", fraction=0.5)

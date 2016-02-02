@@ -18,10 +18,13 @@ class Polypeptide(object):
 				self.hashtable.add(aa)
 				self.aminoacids.append(aa)
 	
-	def randomcoil(self, seq, permissions=None):
+	def randomcoil(self, seq, permissions=None, struct_permissions=None):
 		del self.hashtable
 		self.hashtable = AAHashTable()
-		self.aminoacids = generate_randomcoil(seq, permissions)
+		if len(self.secondary_structures) and struct_permissions:
+			self.aminoacids = generate_randomcoil(seq, permissions=permissions, secondary_structures=self.secondary_structures, struct_permissions=struct_permissions)
+		else:
+			self.aminoacids = generate_randomcoil(seq, permissions)
 		for aa in self.aminoacids: self.hashtable.add(aa)
 	
 	def add_aa(self, aa):
@@ -216,3 +219,51 @@ class Polypeptide(object):
 		ret = self.read_file(f, checkgaps, otheratoms, secondary_structure, fillgaps)
 		f.close()
 		return ret
+	
+	def secondary_structure_aa(self, aa_idx):
+		"""Returns the (structure, strand) of the protein that contains amino acid at the index provided, and None if there is no secondary structure defined there."""
+		return find_secondary_structure(self.secondary_structures, aa_idx)
+
+	def add_secondary_structures(self, sec_struct_string, format='csv'):
+		"""Takes a string of secondary structures in PDB or CSV format, depending on the format option, and adds them to the secondary structure array. CSV format should be 'type', 'subtype', 'start', 'end'. For instance, helix,1,3,6 covers amino acids 3-6."""
+		current_sheet = None
+		self.secondary_structures = []
+		if format == 'csv':
+			for line in sec_struct_string.split('\n'):
+				comps = line.split(',')
+				if comps[0].lower() == 'helix':
+					self.secondary_structures.append(Helix(int(comps[2]), int(comps[3]), int(comps[1])))
+				elif comps[0].lower() == 'sheet':
+					if int(comps[1]) == 0:
+						if current_sheet: self.secondary_structures.append(sheet)
+						current_sheet = Sheet(int(comps[2]), int(comps[3]), int(comps[1]))
+					else:
+						current_sheet.add_strand(int(comps[2]), int(comps[3]), int(comps[1]))
+				else: print "Unknown secondary structure"
+		else:
+			for line in sec_struct_string.split('\n'):
+				if line.find('HELIX') == 0:
+					start_seq = int(line[22:26])
+					end_seq = int(line[34:38])
+					type = int(line[39:41])
+					chain_start = line[19]
+					chain_end = line[31]
+					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
+					self.secondary_structures.append(Helix(start_seq, end_seq, type))
+				elif line.find('SHEET') == 0:
+					sense = int(line[38:40])
+					start_seq = int(line[23:26])
+					end_seq = int(line[34:37])
+					chain_start = line[21]
+					chain_end = line[32]
+					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
+					if not current_sheet or sense == 0:
+						if current_sheet:
+							self.secondary_structures.append(current_sheet)
+						current_sheet = Sheet(start_seq, end_seq, sense)
+					else:
+						current_sheet.add_strand(start_seq, end_seq, sense)
+		if current_sheet:
+			self.secondary_structures.append(current_sheet)
+
+

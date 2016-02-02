@@ -180,6 +180,14 @@ class Point3D(object):
 		mag = self.magnitude()
 		pt = Point3D(self.x / mag, self.y / mag, self.z / mag)
 		return pt
+		
+	def random_vicinity(self, distance=0.1):
+		"""This helper function returns a random point within a cube of side distance * 2 centered at point."""
+		point = Point3D(random.uniform(self.x - distance, self.x + distance),
+						random.uniform(self.y - distance, self.y + distance),
+						random.uniform(self.z - distance, self.z + distance))
+		return point
+
 
 	def tospherical(self):
 		distance = self.magnitude()
@@ -355,3 +363,26 @@ class PositionZone(object):
 
 	def stringforfile(self):
 		return "%d, %d, %d; %.1f, %.1f, %.1f; %.1f, %.1f, %.1f; %.1f, %.1f, %.1f\n" % (self.alpha_zone.x, self.alpha_zone.y, self.alpha_zone.z, self.x_axis.x, self.x_axis.y, self.x_axis.z, self.y_axis.x, self.y_axis.y, self.y_axis.z, self.z_axis.x, self.z_axis.y, self.z_axis.z)
+
+def read_pz(pzstring):
+	i = 0
+	zp = PositionZone()
+	for pointstr in pzstring.split(";"):
+		(x, y, z) = pointstr.split(",")
+		if i == 0: zp.alpha_zone = Point3D(x, y, z)
+		elif i == 1: zp.x_axis = Point3D(x, y, z)
+		elif i == 2: zp.y_axis = Point3D(x, y, z)
+		elif i == 3:
+			zp.z_axis = Point3D(x, y, z)
+			return zp
+		i += 1
+	return None
+
+def random_vicinity_axes(conformation, distance=0.01):
+	"""This useful method produces a set of axes (i, j, k) that is mutually orthogonal based on a position zone, which may be rounded and thus confounds the system."""
+	if math.fabs(distance) <= 0.0001: return (conformation.x_axis, conformation.y_axis, conformation.z_axis)
+	i = conformation.x_axis.random_vicinity(distance).normalize()
+	j = Point3D(random.uniform(conformation.y_axis.x - distance, conformation.y_axis.x + distance), random.uniform(conformation.y_axis.y - distance, conformation.y_axis.y + distance), 0.0)
+	j.z = -(i.x * j.x + i.y * j.y) / i.z
+	k = crossproduct(i, j)
+	return (i, j.normalize(), k.normalize())

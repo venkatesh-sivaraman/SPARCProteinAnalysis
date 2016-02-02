@@ -1891,6 +1891,62 @@ def determine_omits(all_pdbs, omitspath):
 		print pdbid
 	return (total, num_omits, partial_omits)
 
+def aggregate_secondary_structures(input):
+	"""Aggregates the contents of each secondary structure type in each folder into the directory specified in input."""
+	data = {}
+	for folder in os.listdir(input):
+		if not os.path.isdir(os.path.join(input, folder)): continue
+		print folder
+		filenames = os.listdir(os.path.join(input, folder))
+		for struct_file in filenames:
+			if ".txt" not in struct_file: continue
+			if struct_file not in data:
+				data[struct_file] = {}
+			with open(os.path.join(input, folder, struct_file), "r") as file:
+				for line in file:
+					pz = read_pz(line)
+					freq = int(line.split(";")[-1])
+					if pz in data[struct_file]:
+						data[struct_file][pz] += freq
+					else:
+						data[struct_file][pz] = freq
+	for filename in data:
+		sorted_points = sorted(data[filename].items(), key=lambda x: -x[1])
+		with open(os.path.join(input, filename), "w") as f:
+			for pz, freq in sorted_points:
+				f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " +
+						str(pz.x_axis.x) + ", " + str(pz.x_axis.y) + ", " + str(pz.x_axis.z) + "; " +
+						str(pz.y_axis.x) + ", " + str(pz.y_axis.y) + ", " + str(pz.y_axis.z) + "; " +
+						str(pz.z_axis.x) + ", " + str(pz.z_axis.y) + ", " + str(pz.z_axis.z) + "; " +
+						str(freq) + "\n")
+
+def trim_secondary_structure_pzs(input, fraction=0.9):
+	"""Overwrites the secondary structure files by keeping the position zones that contain the top 'fraction' of occurrences (default, top 90%)."""
+	for path in os.listdir(input):
+		if ".txt" not in path or ("helix" not in path and "sheet" not in path): continue
+		print path
+		data = []
+		total_freq = 0
+		with open(os.path.join(input, path), "r") as file:
+			for line in file:
+				pz = read_pz(line)
+				freq = int(line.split(";")[-1])
+				data.append((pz, freq))
+				total_freq += freq
+		cutoff = total_freq * fraction
+		with open(os.path.join(input, path), "w") as f:
+			cumulative_freq = 0
+			for pz, freq in data:
+				if cumulative_freq > cutoff: break
+				f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " +
+					str(pz.x_axis.x) + ", " + str(pz.x_axis.y) + ", " + str(pz.x_axis.z) + "; " +
+					str(pz.y_axis.x) + ", " + str(pz.y_axis.y) + ", " + str(pz.y_axis.z) + "; " +
+					str(pz.z_axis.x) + ", " + str(pz.z_axis.y) + ", " + str(pz.z_axis.z) + "; " +
+					str(freq) + "\n")
+				cumulative_freq += freq
+
+
+
 #MARK: CHARMM Comparison
 
 def correlate_charmm_sparc(input):

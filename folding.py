@@ -18,7 +18,7 @@ def mutate_aa_orientation(protein, psource, residue):
 	selected_conformation = sample_cdf(probabilities)
 	if psource.distributions[0].score(protein, [residue.hypothetical(selected_conformation[0])]) < 0:
 		print "Favorable conformation."
-	residue.set_axes(*psource.random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [residue])), normalized=True)
+	residue.set_axes(random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [residue])), normalized=True)
 	
 	#Now radiate outward from the selected amino acid and adjust the neighbors' positions.
 	delta = 1000000.0
@@ -32,7 +32,7 @@ def mutate_aa_orientation(protein, psource, residue):
 			
 			#Sample the cumulative distribution function and execute the change.
 			selected_conformation = sample_cdf(probabilities)
-			preresidue.set_axes(*psource.random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [preresidue])), normalized=True)
+			preresidue.set_axes(random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [preresidue])), normalized=True)
 		#preresidue.set_axes(selected_conformation[0].x_axis, selected_conformation[0].y_axis, selected_conformation[0].z_axis)
 		
 		if postresidue.tag < len(protein.aminoacids) - 1:
@@ -43,7 +43,7 @@ def mutate_aa_orientation(protein, psource, residue):
 			
 			#Sample the cumulative distribution function and execute the change.
 			selected_conformation = sample_cdf(probabilities)
-			postresidue.set_axes(*psource.random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [postresidue])), normalized=True)
+			postresidue.set_axes(random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [postresidue])), normalized=True)
 			#postresidue.set_axes(selected_conformation[0].x_axis, selected_conformation[0].y_axis, selected_conformation[0].z_axis)
 
 def mutate_aa_pos_orientation(protein, psource, residue):
@@ -52,14 +52,14 @@ def mutate_aa_pos_orientation(protein, psource, residue):
 	
 	#Sample the cumulative distribution function and execute the change.
 	selected_conformation = sample_cdf(probabilities)
-	residue.acarbon = psource.random_vicinity(selected_conformation[0].alpha_zone, residue.tag, distance=psource.randomization_margin(selected_conformation, [residue]))
+	residue.acarbon = selected_conformation[0].alpha_zone.random_vicinity(distance=psource.randomization_margin(selected_conformation, [residue]))
 	
 	#Find angle probabilities
 	probabilities = psource.angleprobabilities(residue)
 	
 	#Sample the cumulative distribution function and execute the change.
 	selected_conformation = sample_cdf(probabilities)
-	residue.set_axes(*psource.random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [residue])), normalized=True)
+	residue.set_axes(random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [residue])), normalized=True)
 	#residue.set_axes(selected_conformation[0].x_axis, selected_conformation[0].y_axis, selected_conformation[0].z_axis)
 	
 	#Now radiate outward from the selected amino acid and adjust the neighbors' positions.
@@ -79,7 +79,7 @@ def mutate_aa_pos_orientation(protein, psource, residue):
 			#for anchor in anchors:
 			#	d = min(x.alpha_zone.distanceto(anchor.acarbon) for x in selected_conformation)
 			#	print "Preselected:", d
-			new_loc = psource.random_vicinity(selected_conformation[0].alpha_zone, preresidue.tag, distance=psource.randomization_margin(selected_conformation, [preresidue]))
+			new_loc = selected_conformation[0].alpha_zone.random_vicinity(distance=psource.randomization_margin(selected_conformation, [preresidue]))
 			delta = min(delta, preresidue.acarbon.distanceto(new_loc))
 			preresidue.acarbon = new_loc
 			
@@ -88,7 +88,7 @@ def mutate_aa_pos_orientation(protein, psource, residue):
 			
 			#Sample the cumulative distribution function and execute the change.
 			selected_conformation = sample_cdf(probabilities)
-			preresidue.set_axes(*psource.random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [preresidue])), normalized=True)
+			preresidue.set_axes(random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [preresidue])), normalized=True)
 			#preresidue.set_axes(selected_conformation[0].x_axis, selected_conformation[0].y_axis, selected_conformation[0].z_axis)
 		
 		if postresidue.tag < len(protein.aminoacids) - 1:
@@ -104,7 +104,7 @@ def mutate_aa_pos_orientation(protein, psource, residue):
 			#for anchor in anchors:
 			#	d = min(x.alpha_zone.distanceto(anchor.acarbon) for x in selected_conformation)
 			#	print "Postselected:", d
-			new_loc = psource.random_vicinity(selected_conformation[0].alpha_zone, postresidue.tag, distance=psource.randomization_margin(selected_conformation, [postresidue]))
+			new_loc = selected_conformation[0].alpha_zone.random_vicinity(distance=psource.randomization_margin(selected_conformation, [postresidue]))
 			delta = min(delta, postresidue.acarbon.distanceto(new_loc))
 			postresidue.acarbon = new_loc
 			
@@ -113,7 +113,7 @@ def mutate_aa_pos_orientation(protein, psource, residue):
 			
 			#Sample the cumulative distribution function and execute the change.
 			selected_conformation = sample_cdf(probabilities)
-			postresidue.set_axes(*psource.random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [postresidue])), normalized=True)
+			postresidue.set_axes(random_vicinity_axes(selected_conformation[0], distance=psource.randomization_margin(selected_conformation, [postresidue])), normalized=True)
 			#postresidue.set_axes(selected_conformation[0].x_axis, selected_conformation[0].y_axis, selected_conformation[0].z_axis)
 
 def _apply_conformation_recursive(protein, psource, segment_length, segment, selected_conformation, restore=False, wave=0, file=None, cutoff_wave=5.0):
