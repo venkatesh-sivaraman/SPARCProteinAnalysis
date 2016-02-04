@@ -218,8 +218,8 @@ class AASecondaryStructurePermissionsManager(PermissionsManager):
 			for pz in self.allowed_zones[structure_type]:
 				self.allowed_zones[structure_type][pz] = self.allowed_zones[structure_type][pz] / float(total_freq)
 
-	def allowed_conformations(self, aminoacid, reference_aa, structure_type, subtype, size=10):
-		"""This overridden function accepts an amino acid whose allowed position zones are requested, and a reference_aa (prior amino acid) to which the amino acid's position should be favorable. The structure_type and subtype can be obtained from the secondary structure and strand objects in the protein. Return values are position zones in the global coordinate system."""
+	def allowed_conformations(self, aminoacid, reference_aa, structure_type, subtype, prior=True, size=10):
+		"""This overridden function accepts an amino acid whose allowed position zones are requested, and a reference_aa (prior amino acid or not depending on the value of prior) to which the amino acid's position should be favorable. The structure_type and subtype can be obtained from the secondary structure and strand objects in the protein. Return values are position zones in the global coordinate system."""
 		info_key = structure_type + str(subtype)
 		if info_key not in self.allowed_zones:
 			print "Secondary structure type", info_key, "not supported."

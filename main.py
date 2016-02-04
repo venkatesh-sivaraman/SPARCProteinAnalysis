@@ -178,18 +178,6 @@ def simulate_fold(dists):
 	file = open("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/simulation_test.pdb", 'w')
 	#file.write(peptide.xyz(escaped=False))
 	scores = [sum(dist.score(peptide, peptide.aminoacids) for dist in dists)]
-	consec_dist = next((dist for dist in dists if dist.type == frequency_consec_disttype), None)
-	for sec_struct in peptide.secondary_structures:
-		print sec_struct
-		for strand in sec_struct.strands:
-			last_aa = peptide.aminoacids[strand.start]
-			for i in xrange(strand.start + 1, strand.end):
-				aa = peptide.aminoacids[i]
-				locs = sec_struct_permissions.allowed_conformations(aa, last_aa, sec_struct.type, strand.identifiers[0])
-				print last_aa
-				for loc in locs:
-					print i, aacode(last_aa.type), aacode(aa.type), last_aa.tolocal(loc.alpha_zone).floor(), consec_dist.alpha_frequency(aacode(last_aa.type), aacode(aa.type), last_aa.tolocal(loc.alpha_zone).floor())
-				last_aa = aa
 	print scores[-1], "Avg:", scores[-1] / len(peptide.aminoacids)
 	file.write(peptide.pdb(modelno=1))
 	
@@ -428,7 +416,7 @@ if __name__ == '__main__':
 	#supplement_natives("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp")
 	#tm_sparc_correlation("/Volumes/External Hard Drive/Science Fair 2014-15/decoy-tm", "/Volumes/External Hard Drive/Science Fair 2014-15/decoy-scores")
 	#permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Desktop/sciencefair/allowed-zones")
-	func()
+	#func()
 	#w = [9,4,3]
 	'''print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/4state_reduced", w)
 	print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/fisa_casp3", w)

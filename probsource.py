@@ -210,10 +210,11 @@ psource_gentle_mode = 2
 
 class AAProbabilitySource(ProbabilitySource):
 	"""AAProbabilitySource provides the interface for coordinating DistributionManager objects to return probabilities for each possible conformation visited by a folding simulator."""
-	def __init__(self, protein, distributions, permissions=None):
+	def __init__(self, protein, distributions, permissions=None, sec_struct_permissions=None):
 		super(AAProbabilitySource,self).__init__(protein)
 		self.distributions = distributions
 		self.permissions = permissions
+		self.sec_struct_permissions = sec_struct_permissions
 		def distance_weight(conformation, aminoacids=[], proximity=0.01):
 			a = 100.0
 			b = math.atan(a * proximity) + math.pi / 2.0
@@ -277,6 +278,7 @@ class AAProbabilitySource(ProbabilitySource):
 		assert self.permissions is not None, "Cannot perform a pivot without a PermissionsManager."
 		if prior is True:	aa = aminoacids[0]
 		else:				aa = aminoacids[-1]
+		#TODO: Use self.sec_struct_permissions
 		allowed_conformations = self.permissions.allowed_conformations(aa, anchor, prior)
 		for pz in allowed_conformations:
 			if len(aminoacids) > 1:
@@ -522,7 +524,7 @@ class AAProbabilitySource(ProbabilitySource):
 				clusters[-1][2] += aa.localscore
 				clusters[-1][3] = aa.localscore
 				clusters[-1][4] = aa.localscore
-			elif current_struct:
+			'''elif current_struct:
 				if current_struct.start == i and not matches_score(aa.localscore, cluster_range):
 					clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
 					clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
@@ -530,7 +532,7 @@ class AAProbabilitySource(ProbabilitySource):
 					clusters[-1][1] += 1
 					clusters[-1][2] += aa.localscore
 				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
-				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore
+				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore'''
 			elif matches_score(aa.localscore, cluster_range):
 				clusters[-1][1] += 1
 				clusters[-1][2] += aa.localscore
