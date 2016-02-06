@@ -1757,10 +1757,24 @@ def aggregate_networkdata(input, output):
 		The output is formatted the same way.
 		"""
 	if not os.path.exists(output): os.mkdir(output)
+	done_secondary = os.path.exists(os.path.join(output, "secondary"))
 	for req_aa in xrange(0, AMINO_ACID_COUNT):
+		if os.path.exists(os.path.join(output, "medium-" + str(req_aa) + ".txt")):
+			continue
+		if not done_secondary:
+			secondary_data = {
+				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+				secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+				secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+				secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+				secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+				secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+				secondary_struct_sheet + "-1" : {}
+			}
 		data = {
 			"nonconsec" : [{} for i in range(AMINO_ACID_COUNT)],
 			"consec" : [{} for i in range(AMINO_ACID_COUNT)],
+			"short-range" : [{} for i in range(AMINO_ACID_COUNT)],
 			"medium" : [0 for i in xrange(100)]
 		}
 		print "========", req_aa
@@ -1777,7 +1791,7 @@ def aggregate_networkdata(input, output):
 								data["medium"][int(comps[0])] += int(comps[1])
 
 				if not os.path.isdir(os.path.join(input, subdir, subsubdir)): continue
-				if subsubdir == "consec" or subsubdir == "nonconsec":
+				if subsubdir == "consec" or subsubdir == "nonconsec" or subsubdir == "short-range":
 					for aacombo in os.listdir(os.path.join(input, subdir, subsubdir)):
 						if ".txt" not in aacombo: continue
 						aas = [int(x) for x in aacombo.replace(".txt", "").split("-")]
@@ -1791,7 +1805,19 @@ def aggregate_networkdata(input, output):
 								else:
 									data[subsubdir][aas[1]][pz] = int(comps[1])
 						del file
-						gc.collect()
+				elif subsubdir == "secondary" and not done_secondary:
+					for sec_struct in os.listdir(os.path.join(input, subdir, subsubdir)):
+						if ".txt" not in sec_struct: continue
+						struct_type = sec_struct[:-4]
+						with open(os.path.join(input, subdir, subsubdir, sec_struct), "r") as file:
+							for line in file:
+								comps = line.split(";")
+								pz = PositionZone(Point3D(*comps[0].split(",")))
+								if pz in secondary_data[struct_type]:
+									secondary_data[struct_type][pz] += int(comps[1])
+								else:
+									secondary_data[struct_type][pz] = int(comps[1])
+						del file
 				elif subsubdir == "medium":
 					for aafile in os.listdir(os.path.join(input, subdir, subsubdir)):
 						if ".txt" not in aafile: continue
@@ -1802,28 +1828,22 @@ def aggregate_networkdata(input, output):
 								if int(line.strip()) < len(data[subsubdir]):
 									data[subsubdir][int(line.strip())] += 1
 						del file
-						gc.collect()
+				gc.collect()
 
-		#Nonconsec
-		nonconsec_path = join(output, "nonconsec")
-		if not os.path.exists(nonconsec_path): os.mkdir(nonconsec_path)
-		i = req_aa
-		for j in range(AMINO_ACID_COUNT):
-			if not len(data["nonconsec"][j]): continue
-			f = open(join(nonconsec_path, "%d-%d.txt" % (i, j)), 'w')
-			for pz, freq in data["nonconsec"][j].iteritems():
-				f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
-			f.close()
+		def write_file(key):
+			file_path = join(output, key)
+			if not os.path.exists(file_path): os.mkdir(file_path)
+			i = req_aa
+			for j in range(AMINO_ACID_COUNT):
+				if not len(data[key][j]): continue
+				f = open(join(file_path, "%d-%d.txt" % (i, j)), 'w')
+				for pz, freq in data[key][j].iteritems():
+					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
+				f.close()
 
-		#Consec
-		consec_path = join(output, "consec")
-		if not os.path.exists(consec_path): os.mkdir(consec_path)
-		for j in range(AMINO_ACID_COUNT):
-			if not len(data["consec"][j]): continue
-			f = open(join(consec_path, "%d-%d.txt" % (i, j)), 'w')
-			for pz, freq in data["consec"][j].iteritems():
-				f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
-			f.close()
+		write_file("nonconsec")
+		write_file("consec")
+		write_file("short-range")
 
 		#Medium
 		medium_path = join(output, "medium-" + str(req_aa) + ".txt")
@@ -1831,8 +1851,19 @@ def aggregate_networkdata(input, output):
 			for i, x in enumerate(data["medium"]):
 				file.write(str(i) + ' ' + str(x) + '\n')
 		data.clear()
-		del data
 		gc.collect()
+
+		if not done_secondary and len(secondary_data["helix1"]):
+			#Secondary
+			secondary_path = join(output, "secondary")
+			if not os.path.exists(secondary_path): os.mkdir(secondary_path)
+			for struct_type in secondary_data:
+				if not len(secondary_data[struct_type]): continue
+				f = open(join(secondary_path, struct_type + ".txt"), 'w')
+				for pz, freq in secondary_data[struct_type].iteritems():
+					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
+				f.close()
+			done_secondary = True
 
 def medium_distributions(input, output):
 	if not os.path.exists(output): os.mkdir(output)

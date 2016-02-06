@@ -8,8 +8,9 @@ if __name__ == '__main__':
 		if not os.path.isdir(join(root, struct)): continue
 		print struct
 		calculate_tm_scores(join(root, struct), join(output, struct + ".txt"))'''
-	analyze_secondary_structure("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/secondary_structures", sample=1000)
-	#calculate_pdb_stats_network("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/all_pdb_ids_laptop.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/block_data")
+	#analyze_secondary_structure("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/secondary_structures", sample=1000)
+	#calculate_pdb_stats_network("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids_laptop.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/expanded_data")
+	aggregate_networkdata("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/expanded_data", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/New SPARC")
 	#print total, omit, partial
 	#correlate_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/magainin_test_xz.txt")
 	#correlate_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/magainin_test_yz.txt")

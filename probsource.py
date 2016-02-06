@@ -524,6 +524,14 @@ class AAProbabilitySource(ProbabilitySource):
 				clusters[-1][2] += aa.localscore
 				clusters[-1][3] = aa.localscore
 				clusters[-1][4] = aa.localscore
+			elif matches_score(aa.localscore, cluster_range):
+				clusters[-1][1] += 1
+				clusters[-1][2] += aa.localscore
+				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
+				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore
+			else:
+				clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
+				clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
 			'''elif current_struct:
 				if current_struct.start == i and not matches_score(aa.localscore, cluster_range):
 					clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
@@ -533,14 +541,6 @@ class AAProbabilitySource(ProbabilitySource):
 					clusters[-1][2] += aa.localscore
 				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
 				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore'''
-			elif matches_score(aa.localscore, cluster_range):
-				clusters[-1][1] += 1
-				clusters[-1][2] += aa.localscore
-				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
-				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore
-			else:
-				clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
-				clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
 			cluster_range[0] = min(clusters[-1][3] * min_bound, clusters[-1][4] * max_bound)
 			cluster_range[1] = max(clusters[-1][3] * min_bound, clusters[-1][3] * max_bound)
 			

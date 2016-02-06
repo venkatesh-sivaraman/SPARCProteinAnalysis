@@ -213,8 +213,18 @@ def block_stats_network(id, pdbids, output, mode='d'):
 	if mode == default_network_mode:
 		data = {
 			"nonconsec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"short-range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"consec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
-			"medium" : [[] for i in range(AMINO_ACID_COUNT)]
+			"medium" : [[] for i in range(AMINO_ACID_COUNT)],
+			"secondary" : {
+				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+				secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+				secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+				secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+				secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+				secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+				secondary_struct_sheet + "-1" : {}
+			}
 		}
 	elif mode == sidechain_mode:
 		data = [{} for i in range(AMINO_ACID_COUNT)]
@@ -229,6 +239,18 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			secondary_struct_sheet + "-1" : {}
 		}
 	
+	def add_to_data(aa, aa2, tag1, tag2, key):
+		if tag1 < 22 and tag2 < 22:
+			pz = aa.aa_position_zone(aa2).alpha_zone
+			if pz in data[key][tag1][tag2]:
+				data[key][tag1][tag2][pz] += 1
+			else:
+				data[key][tag1][tag2][pz] = 1
+			return True
+		else:
+			return False
+
+
 	peptide = Polypeptide()
 	for pdbid in pdbids:
 		pdbid = pdbid.strip()
@@ -236,7 +258,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 		try:
 			response = urllib2.urlopen('http://www.rcsb.org/pdb/files/' + pdbid + '.pdb')
 			if mode == default_network_mode:
-				peptide.read_file(response)
+				peptide.read_file(response, secondary_structure=True, fillgaps=True)
 			elif mode == sidechain_mode:
 				peptide.read_file(response, otheratoms=True)
 			elif mode == secondary_structure_mode:
@@ -267,19 +289,17 @@ def block_stats_network(id, pdbids, output, mode='d'):
 							prev_aa = aa
 			else:
 				for i, aa in enumerate(peptide.aminoacids):
+					if aa == None: continue
 					tag1 = aacode(aa.type)
 					if mode == default_network_mode:
 						#Nonconsec
 						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=False)
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
-							if tag1 < 22 and tag2 < 22:
-								pz = aa.aa_position_zone(aa2)
-								if pz in data["nonconsec"][tag1][tag2]:
-									data["nonconsec"][tag1][tag2][pz] += 1
-								else:
-									data["nonconsec"][tag1][tag2][pz] = 1
-							elif not reported:
+							key = "nonconsec"
+							if math.fabs(aa2.tag - aa.tag) <= 5:
+								key = "short-range"
+							if not add_to_data(aa, aa2, tag1, tag2, key):
 								print "Partial omit %r (unknown aa)." % pdbid
 								reported = True
 								break
@@ -288,16 +308,22 @@ def block_stats_network(id, pdbids, output, mode='d'):
 						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=True)
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
-							if tag1 < 22 and tag2 < 22:
-								pz = aa.aa_position_zone(aa2)
-								if pz in data["consec"][tag1][tag2]:
-									data["consec"][tag1][tag2][pz] += 1
-								else:
-									data["consec"][tag1][tag2][pz] = 1
-							elif not reported:
-								print "Partial omit %r (unknown aa)." % pdbid
-								reported = True
-								break
+							key = "consec"
+							sec_struct = peptide.secondary_structure_aa(i)
+							if sec_struct:
+								key = "secondary"
+								pz = aa.aa_position_zone(aa2).alpha_zone
+								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
+								if sec_name in data[key]:
+									if pz in data[key][sec_name]:
+										data[key][sec_name][pz] += 1
+									else:
+										data[key][sec_name][pz] = 1
+							else:
+								if not add_to_data(aa, aa2, tag1, tag2, key):
+									print "Partial omit %r (unknown aa)." % pdbid
+									reported = True
+									break
 
 						#Medium
 						r = peptide.nearby_aa(aa, 10.0, i)
@@ -331,25 +357,28 @@ def block_stats_network(id, pdbids, output, mode='d'):
 	if not os.path.exists(output): os.mkdir(output)
 
 	if mode == default_network_mode:
-		#Nonconsec
-		nonconsec_path = join(output, "nonconsec")
-		if not os.path.exists(nonconsec_path): os.mkdir(nonconsec_path)
-		for i in range(AMINO_ACID_COUNT):
-			for j in range(AMINO_ACID_COUNT):
-				f = open(join(nonconsec_path, "%d-%d.txt" % (i, j)), 'w')
-				for pz, freq in data["nonconsec"][i][j].iteritems():
-					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
-				f.close()
+		def write_data(key):
+			write_path = join(output, key)
+			if not os.path.exists(write_path): os.mkdir(write_path)
+			for i in range(AMINO_ACID_COUNT):
+				for j in range(AMINO_ACID_COUNT):
+					f = open(join(write_path, "%d-%d.txt" % (i, j)), 'w')
+					for pz, freq in data[key][i][j].iteritems():
+						f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
+					f.close()
 
-		#Consec
-		consec_path = join(output, "consec")
-		if not os.path.exists(consec_path): os.mkdir(consec_path)
-		for i in range(AMINO_ACID_COUNT):
-			for j in range(AMINO_ACID_COUNT):
-				f = open(join(consec_path, "%d-%d.txt" % (i, j)), 'w')
-				for pz, freq in data["consec"][i][j].iteritems():
-					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
-				f.close()
+		write_data("nonconsec")
+		write_data("consec")
+		write_data("short-range")
+		
+		#Secondary
+		write_path = join(output, "secondary")
+		if not os.path.exists(write_path): os.mkdir(write_path)
+		for sec_struct_type in data["secondary"]:
+			f = open(join(write_path, sec_struct_type + ".txt"), 'w')
+			for pz, freq in data["secondary"][sec_struct_type].iteritems():
+				f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
+			f.close()
 
 		#Medium
 		medium_path = join(output, "medium")
