@@ -63,13 +63,15 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 						completed = True
 				aminoacid.acarbon = current_pt
 				idx += 1
-				if completed: break
 		if permissions == None or len(axes) == 0:
 			axes = random_axes(last_aa)
 		aminoacid.set_axes(*axes, normalized=False)
 		allaa.append(aminoacid)
 		hashtable.add(aminoacid)
 		last_aa = aminoacid
+	for i, aminoacid in enumerate(allaa):
+		if len(hashtable.nearby_aa(aminoacid, steric_cutoff, consec=False)) > 0 or allaa[i - 1].acarbon.distanceto(aminoacid.acarbon) <= steric_cutoff:
+			print "steric violation with", aminoacid
 	del hashtable
 	return allaa
 

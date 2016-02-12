@@ -35,7 +35,7 @@ running_gcs_calculations = 0
 
 def reset_stats():
 	global running_lcs_calculations, running_gcs_calculations
-	print "Local:", running_lcs_calculations, "Global:", running_gcs_calculations
+	#print "Local:", running_lcs_calculations, "Global:", running_gcs_calculations
 	running_gcs_calculations = 0
 	running_lcs_calculations = 0
 

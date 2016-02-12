@@ -66,6 +66,7 @@ class FrequencyDistributionManager(DistributionManager):
 		if self.type == frequency_consec_disttype: consec = 1
 		elif self.type == frequency_nonconsec_disttype: consec = 0
 		for aa in data:
+			if not aa: continue
 			nearby = protein.nearby_aa(aa, 10.0, consec=consec)
 			for aa2 in nearby:
 				hypo = next((x for x in data if x.tag == aa2.tag), None)
@@ -197,6 +198,7 @@ class MediumDistributionManager(DistributionManager):
 		self.median_frequencies = [0.0 for i in xrange(AMINO_ACID_COUNT)]
 		print "Loading {}...".format(self)
 		self.load_frequencies(frequencies_path)
+		self.identifier = os.path.basename(frequencies_path)
 
 	def load_frequencies(self, frequencies_path):
 		files = os.listdir(frequencies_path)
@@ -221,6 +223,7 @@ class MediumDistributionManager(DistributionManager):
 		"""Pass in an array of amino acids for data."""
 		score = 0.0
 		for aa in data:
+			if not aa: continue
 			tag = aacode(aa.type)
 			if tag >= AMINO_ACID_COUNT: tag = 0
 			coord = len(protein.nearby_aa(aa, 10.0))

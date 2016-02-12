@@ -105,8 +105,8 @@ class Polypeptide(object):
 			aa.acarbon = aa.acarbon.subtract(center)
 
 	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False):
-		"""Pass in a file or file-like object to read. Set checkgaps to True to return a True value (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
-		foundgap = False
+		"""Pass in a file or file-like object to read. Set checkgaps to True to return a list of missing amino acid indices (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
+		gaps = []
 		current_aa = None
 		current_chain = None
 		current_seq = 0
@@ -160,8 +160,10 @@ class Polypeptide(object):
 				current_aa.has_break = True
 			if chain is not current_chain or current_seq != seq:
 				current_chain = chain
-				if seq - current_seq > 1:
-					if checkgaps: foundgap = True
+				if seq - current_seq > 1 and current_seq != 0:
+					if checkgaps:
+						print "Gap between", current_seq, "and", seq
+						for n in xrange(current_seq, seq): gaps.append(n)
 					if fillgaps:
 						while seq != current_seq:
 							self.aminoacids.append(None)
@@ -209,7 +211,7 @@ class Polypeptide(object):
 				self.secondary_structures.append(current_sheet)
 
 		if checkgaps is True:
-			return (foundgap, (minseq, maxseq))
+			return (gaps, (minseq, maxseq))
 		else:
 			return (minseq, maxseq)
 

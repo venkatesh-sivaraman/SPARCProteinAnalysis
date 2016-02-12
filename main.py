@@ -38,20 +38,28 @@ def segment_length(avg_score):
 	weights = [(-((((x - v) / 6.0) ** 2) ** (1.0 / 7.0)) + 1.0) for x in xrange(1, 6)]'''
 	s = sum(weights)
 	weights = [w / s for w in weights]
-	return numpy.random.choice(range(1, 6), p=weights)
+	return numpy.random.choice(range(1, 6))#, p=weights)
 
 def load_dists(weights={frequency_nonconsec_disttype: 1.0, frequency_consec_disttype: 1.0, medium_disttype: 1.0}, concurrent=True):
-	nonconsec = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/nonconsec"
-	consec = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/consec"
-	medium = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/medium"
+	if not reference_state.is_initialized():
+		reference_state.load_reference_state("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/reference_states.txt")
+	nonconsec = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/nonconsec"
+	consec = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/consec"
+	medium = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/medium"
+	short_range = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/short-range"
+	secondary = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/secondary"
 	if concurrent == False:
 		dist1 = MediumDistributionManager(medium)
 		dist1.weight = weights[medium_disttype]
-		dist2 = SPARCBasicDistributionManager(consec, True)
+		dist2 = SPARCBasicDistributionManager(consec, True, blocks_sec_struct=True)
 		dist2.weight = weights[frequency_consec_disttype]
 		dist3 = SPARCBasicDistributionManager(nonconsec, False)
 		dist3.weight = weights[frequency_nonconsec_disttype]
-		return [dist1, dist2, dist3]
+		dist4 = SPARCSecondaryDistributionManager(secondary)
+		dist4.weight = weights[frequency_consec_disttype]
+		dist5 = SPARCBasicDistributionManager(short_range, False, short_range=True)
+		dist5.weight = weights[frequency_nonconsec_disttype]
+		return [dist1, dist2, dist3, dist4, dist5]
 	processes = []
 	queue = multiprocessing.Queue()
 	def generate_distmanager(cls, q, *args):
@@ -61,24 +69,35 @@ def load_dists(weights={frequency_nonconsec_disttype: 1.0, frequency_consec_dist
 	p1 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, nonconsec, False))
 	processes.append(p1)
 	p1.start()
-	p2 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, consec, True))
+	p2 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, consec, True, True))
 	processes.append(p2)
 	p2.start()
 	p3 = multiprocessing.Process(target=generate_distmanager, args=(MediumDistributionManager, queue, medium))
 	processes.append(p3)
 	p3.start()
+	p4 = multiprocessing.Process(target=generate_distmanager, args=(SPARCSecondaryDistributionManager, queue, secondary))
+	processes.append(p4)
+	p4.start()
+	p5 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, short_range, False, False, True))
+	processes.append(p5)
+	p5.start()
+
 	dists = []
+	dists.append(queue.get())
+	dists.append(queue.get())
 	dists.append(queue.get())
 	dists.append(queue.get())
 	dists.append(queue.get())
 	p1.join()
 	p2.join()
 	p3.join()
+	p4.join()
+	p5.join()
 	return dists
 
 def func():
 	#Weights used to be 2, 4, 8
-	dists = load_dists(weights={frequency_nonconsec_disttype: 9.0, frequency_consec_disttype: 4.0, medium_disttype: 3.0})
+	dists = load_dists() #load_dists(weights={frequency_nonconsec_disttype: 9.0, frequency_consec_disttype: 4.0, medium_disttype: 3.0})
 	#cProfile.runctx('simulate_fold(dists)', {'dists': dists, 'simulate_fold': simulate_fold}, {})
 	simulate_fold(dists)
 	#test_folding_parameters(dists)
@@ -99,40 +118,56 @@ def process_decoys_file((input, output, nativepath)):
 	if os.path.basename(input) == "doc": return
 	protein_name = os.path.basename(input)
 	print protein_name
-	distributions = load_dists(concurrent=False)
-	dists = ["", "", ""]
-	for dist in distributions:
-		if dist.type == frequency_nonconsec_disttype: dists[0] = dist
-		elif dist.type == frequency_consec_disttype: dists[1] = dist
-		elif dist.type == medium_disttype: dists[2] = dist
+	dists = load_dists(concurrent=False)
+	distributions = ["", "", "", "", ""]
+	for dist in dists:
+		if dist.identifier == "consec": distributions[0] = dist
+		elif dist.identifier == "secondary": distributions[1] = dist
+		elif dist.identifier == "short-range": distributions[2] = dist
+		elif dist.identifier == "nonconsec": distributions[3] = dist
+		elif "medium" in dist.identifier: distributions[4] = dist
 	paths = os.listdir(input)
+	allpaths = [os.path.join(input, path) for path in paths]
 
 	if "-" in protein_name:
 		path = protein_name[:protein_name.find("-")] + ".pdb"
 	else:
 		path = protein_name + ".pdb"
+	if nativepath: allpaths.append(os.path.join(nativepath, path))
+	max_min = -10000000	#Maximum min bound
+	min_max = 1000000	#Minimum max bound
+	gaps = []
+	for boundpath in allpaths:
+		bounds, newgaps = sparc_scores_file(boundpath, distributions, retbounds=True, noeval=True)
+		if bounds[0] > max_min: max_min = bounds[0]
+		if bounds[1] < min_max: min_max = bounds[1]
+		for gap in newgaps:
+			if gap not in gaps: gaps.append(gap)
+	bounds = (max_min, min_max)
+	print "Bounds:", bounds, "Ignored:", gaps
+
 	nativescores = None
 	if nativepath:
 		if os.path.exists(join(nativepath, path)):
-			bounds, scores = sparc_scores_file(join(nativepath, path), dists, retbounds=True)
+			scores = sparc_scores_file(join(nativepath, path), distributions, bounds=bounds, ignored_aas=gaps)
+			print "native scores:", scores
 			nativescores = scores
 			if output and scores is not None:
 				with open(output, "w") as file:
-					file.write("{}; {}, {}, {}\n".format(protein_name + "_orig.pdb", scores[0], scores[1], scores[2]))
+					file.write("{}; {}, {}, {}, {}, {}\n".format(protein_name + "_orig.pdb", scores[0], scores[1], scores[2], scores[3], scores[4]))
 		else:
 			print join(nativepath, path), "does not exist."
 	else:
-		bounds = None
 		scores = None
 	for path in paths:
 		try:
-			scores = sparc_scores_file(join(input, path), dists)
+			scores = sparc_scores_file(join(input, path), distributions, bounds=bounds, ignored_aas=gaps)
 		except:
 			print path, "exception"
 			continue
 		if output and scores is not None:
 			with open(output, "a") as file:
-				file.write("{}; {}, {}, {}\n".format(path, scores[0], scores[1], scores[2]))
+				file.write("{}; {}, {}, {}, {}, {}\n".format(path, scores[0], scores[1], scores[2], scores[3], scores[4]))
 		del scores
 		gc.collect()
 	ret = ""
@@ -166,7 +201,7 @@ def test_sparc(input, output):
 
 def simulate_fold(dists):
 	permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/permissions")
-	sec_struct_permissions = AASecondaryStructurePermissionsManager("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC/secondary")
+	sec_struct_permissions = AASecondaryStructurePermissionsManager("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/permissions-secondary")
 	peptide = Polypeptide()
 	#peptide.read("/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb")
 	peptide.add_secondary_structures("HELIX    1   1 PRO A    2  GLU A    7  5                                   6\nHELIX    2   2 SER A   47  GLY A   56  1                                  10\nSHEET    1   A 2 ILE A  18  ASN A  24  0\nSHEET    2   A 2 LEU A  29  TYR A  35 -1  N  TYR A  35   O  ILE A  18", format='pdb')
@@ -179,6 +214,9 @@ def simulate_fold(dists):
 	#file.write(peptide.xyz(escaped=False))
 	scores = [sum(dist.score(peptide, peptide.aminoacids) for dist in dists)]
 	print scores[-1], "Avg:", scores[-1] / len(peptide.aminoacids)
+	t_scores = ""
+	for dist in dists: t_scores += str(dist.score(peptide, peptide.aminoacids)) + " "
+	print t_scores
 	file.write(peptide.pdb(modelno=1))
 	
 	prob = AAProbabilitySource(peptide, dists, permissions)
@@ -202,11 +240,14 @@ def simulate_fold(dists):
 			aa.localscore = sum(dist.score(peptide, [aa]) for dist in dists)
 			curscore += aa.localscore
 		scores.append(curscore)
-		print i, scores[-1] / len(peptide.aminoacids)
-		if scores[-1] / len(peptide.aminoacids) <= -100.0:
+		#print i, scores[-1] / len(peptide.aminoacids)
+		t_scores = ""
+		for dist in dists: t_scores += str(dist.score(peptide, peptide.aminoacids)) + " "
+		print t_scores
+		#if scores[-1] / len(peptide.aminoacids) <= -100.0:
 			#file.write(peptide.xyz(escaped=False))
-			file.write(peptide.pdb(modelno=pdb_model_idx))
-			pdb_model_idx += 1
+		file.write(peptide.pdb(modelno=pdb_model_idx))
+		pdb_model_idx += 1
 			#print peptide.xyz(escaped=False)
 		#Save the conformation if it is the best so far.
 		for k in xrange(model_count):
@@ -412,7 +453,8 @@ def supplement_natives(input):
 
 
 if __name__ == '__main__':
-	#test_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp"),
+	#generate_distance_constrained_bins("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/reference_states.txt")
+	test_sparc("/Users/venkatesh-sivaraman/Desktop/casp11.hardpart", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp_hard"),
 	#supplement_natives("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp")
 	#tm_sparc_correlation("/Volumes/External Hard Drive/Science Fair 2014-15/decoy-tm", "/Volumes/External Hard Drive/Science Fair 2014-15/decoy-scores")
 	#permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Desktop/sciencefair/allowed-zones")
@@ -427,9 +469,10 @@ if __name__ == '__main__':
 	print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/vhp_mcmd", w)'''
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/tasser", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/tasser-decoys")
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys")
-	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output")
-	#decoys_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys", "/Users/venkatesh-sivaraman/Downloads/casp11.targets_unsplitted.release11242014", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd-casp")
-	#min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/simulation_long.pdb", "/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb")
+	#print determine_omits("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/omits.txt")
+	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp_hard")
+	#decoys_rmsd("/Users/venkatesh-sivaraman/Desktop/casp11.hardpart", "/Users/venkatesh-sivaraman/Downloads/casp11.targets_unsplitted.release11242014", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd-casp") #/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys
+	#min_rmsd("/Users/venkatesh-sivaraman/Documents/Xcode Projects/PythonProteins/ProteinViewer/simulation_from_native.pdb", "/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb")
 	#link_decoy_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd-casp-backbone", [9.0, 4.0, 3.0])
 	#compare_charmm_sparc_sp("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/structure_pairs", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/comparison_results.txt") #, pairwise=False, idealized=False, minimize=True)
 	#protein_protein_energies("/Users/venkatesh-sivaraman/Downloads/1DUM.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/magainin_test_yz.txt")

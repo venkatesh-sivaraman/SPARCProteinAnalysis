@@ -292,7 +292,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 					if aa == None: continue
 					tag1 = aacode(aa.type)
 					if mode == default_network_mode:
-						#Nonconsec
+						'''#Nonconsec
 						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=False)
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
@@ -302,15 +302,15 @@ def block_stats_network(id, pdbids, output, mode='d'):
 							if not add_to_data(aa, aa2, tag1, tag2, key):
 								print "Partial omit %r (unknown aa)." % pdbid
 								reported = True
-								break
+								break'''
 							
 						#Consec
 						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=True)
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
 							key = "consec"
-							sec_struct = peptide.secondary_structure_aa(i)
-							if sec_struct:
+							#sec_struct = peptide.secondary_structure_aa(i)
+							if False: #sec_struct:
 								key = "secondary"
 								pz = aa.aa_position_zone(aa2).alpha_zone
 								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
@@ -325,13 +325,13 @@ def block_stats_network(id, pdbids, output, mode='d'):
 									reported = True
 									break
 
-						#Medium
+						'''#Medium
 						r = peptide.nearby_aa(aa, 10.0, i)
 						if tag1 < 22:
 							data["medium"][tag1].append(len(r))
 						elif not reported:
 							print "Partial omit %r (unknown aa)." % pdbid
-							reported = True
+							reported = True'''
 				
 					elif mode == sidechain_mode:
 						if tag1 >= 22 and not reported:
@@ -367,11 +367,11 @@ def block_stats_network(id, pdbids, output, mode='d'):
 						f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
 					f.close()
 
-		write_data("nonconsec")
+		#write_data("nonconsec")
 		write_data("consec")
-		write_data("short-range")
+		#write_data("short-range")
 		
-		#Secondary
+		'''#Secondary
 		write_path = join(output, "secondary")
 		if not os.path.exists(write_path): os.mkdir(write_path)
 		for sec_struct_type in data["secondary"]:
@@ -387,7 +387,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			f = open(join(medium_path, "%d.txt" % i), 'w')
 			for datum in data["medium"][i]:
 				f.write(str(datum) + '\n')
-			f.close()
+			f.close()'''
 	elif mode == sidechain_mode:
 		for i in range(AMINO_ACID_COUNT):
 			f = open(join(output, "%d.txt" % i), 'w')

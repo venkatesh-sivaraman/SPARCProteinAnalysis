@@ -278,8 +278,11 @@ class AAProbabilitySource(ProbabilitySource):
 		assert self.permissions is not None, "Cannot perform a pivot without a PermissionsManager."
 		if prior is True:	aa = aminoacids[0]
 		else:				aa = aminoacids[-1]
-		#TODO: Use self.sec_struct_permissions
-		allowed_conformations = self.permissions.allowed_conformations(aa, anchor, prior)
+		sec_struct = self.protein.secondary_structure_aa(aa)
+		if sec_struct and self.sec_struct_permissions:
+			allowed_conformations = self.sec_struct_permissions.allowed_conformations(aa, anchor, sec_struct[0].type, sec_struct[1].identifiers[0], prior)
+		else:
+			allowed_conformations = self.permissions.allowed_conformations(aa, anchor, prior)
 		for pz in allowed_conformations:
 			if len(aminoacids) > 1:
 				conformation = rotate_segment_anchor(aminoacids, pz, prior)
@@ -524,6 +527,15 @@ class AAProbabilitySource(ProbabilitySource):
 				clusters[-1][2] += aa.localscore
 				clusters[-1][3] = aa.localscore
 				clusters[-1][4] = aa.localscore
+			elif current_struct and random.randint(0, 100) < 60:
+				if current_struct.start == i and not matches_score(aa.localscore, cluster_range):
+					clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
+					clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
+				else:
+					clusters[-1][1] += 1
+					clusters[-1][2] += aa.localscore
+				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
+				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore
 			elif matches_score(aa.localscore, cluster_range):
 				clusters[-1][1] += 1
 				clusters[-1][2] += aa.localscore
@@ -532,15 +544,6 @@ class AAProbabilitySource(ProbabilitySource):
 			else:
 				clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
 				clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
-			'''elif current_struct:
-				if current_struct.start == i and not matches_score(aa.localscore, cluster_range):
-					clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
-					clusters.append([i, i + 1, aa.localscore, aa.localscore, aa.localscore])
-				else:
-					clusters[-1][1] += 1
-					clusters[-1][2] += aa.localscore
-				if aa.localscore < clusters[-1][3]: clusters[-1][3] = aa.localscore
-				if aa.localscore > clusters[-1][4]: clusters[-1][4] = aa.localscore'''
 			cluster_range[0] = min(clusters[-1][3] * min_bound, clusters[-1][4] * max_bound)
 			cluster_range[1] = max(clusters[-1][3] * min_bound, clusters[-1][3] * max_bound)
 			

@@ -197,11 +197,9 @@ def write_median_frequencies(input):
 	"""Writes the median frequency to the end of the file for each alpha zone file in input."""
 	for path in os.listdir(input):
 		if ".txt" not in path: continue
-		fncomps = path[:path.find(".txt")].split("-")
-		idx1 = int(fncomps[0])
-		idx2 = int(fncomps[1])
+		fncomps = path[:path .find(".txt")].split("-")
+		print path[:path.find(".txt")]
 		dist = []
-		print idx1, idx2
 		with open(os.path.join(input, path), 'r') as file:
 			for line in file:
 				line = line.strip()
@@ -219,8 +217,9 @@ def write_median_frequencies(input):
 		with open(os.path.join(input, path), 'r') as file:
 			text = file.readlines()
 		with open(os.path.join(input, path), 'w') as file:
-			for line in text[:-1]:
-				file.write(line)
+			for line in text:
+				if len(line.split(";")) > 1:
+					file.write(line)
 			file.write(str(median) + "\n" + str(mean) + "\n")
 
 def write_mean_hydrophobicity_dist(input):
@@ -1411,19 +1410,20 @@ def sparc_scores(input, dists):
 		gc.collect()
 	return ret
 
-def sparc_scores_file(input, dists, bounds=None, retbounds=False):
-	"""This function iterates through the one file at 'input' and, after reading its structure into memory, evaluates their score using the provided distribution objects with all the provided lists of weights. The result is a dictionary containing filepath: score. If you pass a tuple (min, max) for bounds, only those tags (inclusive) will be considered. If you pass True for retbounds, this function will return the min and max of the polypeptide read function in a tuple with the default return value."""
+def sparc_scores_file(input, dists, bounds=None, retbounds=False, ignored_aas=None, noeval=False):
+	"""This function iterates through the one file at 'input' and, after reading its structure into memory, evaluates their score using the provided distribution objects with all the provided lists of weights. The result is a dictionary containing filepath: score. If you pass a tuple (min, max) for bounds, only those tags (inclusive) will be considered. If you pass True for retbounds, this function will return the min and max of the polypeptide read function in a tuple along with a list of gaps, and the default return value. If you pass True for noeval, the function will only return the bounds and gaps if you so asked, without computing the SPARC scores at all."""
 	#files = os.listdir(input)
 	ret = None
-	print os.path.basename(input)
+	if not noeval:
+		print os.path.basename(input)
 	#if "T" not in input: return ret
 	if os.path.basename(input)[0] == ".": return ret
 	peptide = Polypeptide()
-	gaps, rbounds = peptide.read(input, checkgaps=True)
+	gaps, rbounds = peptide.read(input, checkgaps=True, fillgaps=True)
 	if bounds is not None:
 		bounds = (bounds[0] - rbounds[0], bounds[1] - rbounds[0])
 		print bounds
-		if gaps is True or bounds[0] < 0 or bounds[-1] >= len(peptide.aminoacids):
+		if bounds[0] < 0 or bounds[-1] >= len(peptide.aminoacids):
 			return ret
 		pre = peptide.aminoacids[:bounds[0]]
 		post = peptide.aminoacids[bounds[1] + 1:]
@@ -1435,16 +1435,25 @@ def sparc_scores_file(input, dists, bounds=None, retbounds=False):
 		del peptide.aminoacids[:bounds[0]]
 		idx = 0
 		for aa in peptide.aminoacids:
-			aa.tag = idx
+			if aa:
+				aa.tag = idx
 			idx += 1
+	if noeval:
+		if retbounds == True:
+			return (rbounds, gaps)
+		else:
+			return ret
 	for dist in dists:
 		dist.weight = 1.0
-	ret = [dist.score(peptide, peptide.aminoacids) for dist in dists]
+	considering_aas = peptide.aminoacids
+	if ignored_aas:
+		considering_aas = [aa for aa in peptide.aminoacids if aa and aa.tag not in ignored_aas]
+	ret = [dist.score(peptide, considering_aas) for dist in dists]
 	del peptide.aminoacids[:]
 	del peptide
 	gc.collect()
 	if retbounds == True:
-		return (rbounds, ret)
+		return (rbounds, gaps, ret)
 	else:
 		return ret
 
@@ -1458,21 +1467,26 @@ def _weight_data(input, weights):
 			nm = line[:line.find(";")]
 			if ".pdb" in nm: nm = nm[:nm.find(".pdb")]
 			comps = line[line.find(";") + 1:].split(",")
-			score = float(comps[0]) * weights[0] + float(comps[1]) * weights[1] + float(comps[2]) * weights[2]
+			score = 0.0
+			for i, w in enumerate(weights):
+				score += float(comps[i]) * w
 			if score < best_combo:
 				best_combo = score
 				best_nm = nm
 	return best_nm
 
-def best_weights(input):
+def best_weights(input, numweights=4):
 	"""This function determines which set of integer weights maximizes the number of correct guesses for the native structure. Correctness is determined by the filename being equivalent to the structure chosen."""
 	weights = []
-	for x in xrange(1,10):
-		for y in xrange(1,10):
-			for z in xrange(1,10):
-				if x == y and y == z: continue
-				weights.append((x, y, z))
-	weights[0] = (9, 4, 3)
+	def genweights(levels, min, max):
+		if levels == 1:
+			for i in xrange(min, max): yield [i]
+		else:
+			for w in genweights(levels - 1, min, max):
+				for i in xrange(min, max): yield w + [i]
+	for weightlist in genweights(numweights, 1, 4):
+		weightlist.insert(1, 0)
+		weights.append(weightlist)
 	maxcorrect = 0
 	maxweights = []
 	max_z = -100000
@@ -1520,7 +1534,9 @@ def z_score(input, weights, structure_files=None):
 				nm = line[:line.find(";")]
 				if ".pdb" in nm: nm = nm[:nm.find(".pdb")]
 				comps = line[line.find(";") + 1:].split(",")
-				score = float(comps[0]) * weights[0] + float(comps[1]) * weights[1] + float(comps[2]) * weights[2]
+				score = 0.0
+				for i, w in enumerate(weights):
+					score += float(comps[i]) * w
 				if score != 0.0:
 					if structure_files:
 						if not os.path.exists(os.path.join(structure_files, protein_name, nm)): break
@@ -1537,7 +1553,6 @@ def z_score(input, weights, structure_files=None):
 					if score < minscore:
 						minscore = score
 					gc.collect()
-			print "Done with", protein_name
 		stdev = numpy.std(nonnative)
 		mean = sum(nonnative) / float(len(nonnative))
 		#print protein_name + " & " + str(float(mean - native) / stdev)
@@ -1599,8 +1614,8 @@ def calc_rmsd(file1, file2, tmpdir):
 	if True: #try:
 		with open(os.devnull, "w") as fnull:
 			#cmd = "rm \\#*\\#; echo \"3\n3\n\" | gmx confrms -f1 \"" + file1 + "\" -f2 \"" + file2 + "\" -name"
-			cmd = "rm \\#*\\#; echo \"3\n3\n\" | gmx confrms -f1 \"" + file1 + "\" -f2 \"" + file2 + "\" -name"
-			out = subprocess.check_output(cmd, shell=True, stderr=fnull)
+			cmd = "rm \\#*\\#; echo \"3\n3\n\" | gmx confrms -name -f1 \"" + file1 + "\" -f2 \"" + file2 + "\""
+			out = subprocess.check_output(cmd, shell=True)
 	'''except:
 		print "Exception"
 		return 100000'''
@@ -1620,7 +1635,7 @@ def decoys_rmsd(input, native_paths, output):
 	if os.path.exists(tmpdir):
 		shutil.rmtree(tmpdir)
 	os.mkdir(tmpdir)
-	for path in os.listdir(input):
+	for path in reversed(os.listdir(input)):
 		if not os.path.isdir(os.path.join(input, path)): continue
 		if native_paths is not None:
 			nativepath = os.path.join(native_paths, path + ".pdb")
@@ -1825,8 +1840,13 @@ def aggregate_networkdata(input, output):
 						if aaid != req_aa: continue
 						with open(os.path.join(input, subdir, subsubdir, aafile), "r") as file:
 							for line in file:
-								if int(line.strip()) < len(data[subsubdir]):
-									data[subsubdir][int(line.strip())] += 1
+								comps = line.strip().split()
+								if len(comps) > 1:
+									if int(comps[0]) < len(data["medium"]):
+										data["medium"][int(comps[0])] += int(comps[1])
+								else:
+									if int(line.strip()) < len(data[subsubdir]):
+										data[subsubdir][int(line.strip())] += 1
 						del file
 				gc.collect()
 
@@ -2005,3 +2025,50 @@ def correlate_charmm_sparc(input):
 		comp1 = d[1] / d[2]
 		print str(comp1) + "\t" + comp2'''
 		print str(d[0]) + "\t" + str(d[1]) + "\t" + str(d[2])
+
+#MARK: Reference State
+
+def generate_distance_constrained_bins(output, radius=10.0, step=1.0):
+	"""In the file determined by output, writes one entry for every bucket in a sphere of the provided radius. For each bucket, it writes the number of buckets of side length 'step' that share distances within the range of distances in that bucket."""
+	ranges = {}
+	for point in Point3D.zero().iteroffsets(radius, step=step):
+		if point.x >= 0.0:
+			minx = point.x
+			maxx = point.x + 1.0
+		else:
+			minx = point.x + 1.0
+			maxx = point.x
+		if point.y >= 0.0:
+			miny = point.y
+			maxy = point.y + 1.0
+		else:
+			miny = point.y + 1.0
+			maxy = point.y
+		if point.z >= 0.0:
+			minz = point.z
+			maxz = point.z + 1.0
+		else:
+			minz = point.z + 1.0
+			maxz = point.z
+		mindist = Point3D(minx, miny, minz).magnitude()
+		maxdist = Point3D(maxx, maxy, maxz).magnitude()
+		if mindist >= radius: continue
+		ranges[point] = (mindist, maxdist)
+	print "Evaluated all points"
+	with open(output, "w") as file:
+		currx = 0.0
+		for point in Point3D.zero().iteroffsets(radius, step=step):
+			if point.x != currx:
+				print point.x
+				currx = point.x
+			# We only write points in Octant I because the other points can be determined from these.
+			# For instance, (-2, 4, -7) would have the same number as (1, 4, 6).
+			if point not in ranges or point.x < 0.0 or point.y < 0.0 or point.z < 0.0: continue
+			baserange = ranges[point]
+			count = 0
+			for point2, range in ranges.iteritems():
+				if point2 != point and ((range[0] >= baserange[0] and range[0] <= baserange[1]) or (range[1] >= baserange[0] and range[1] <= baserange[1])):
+					count += 1
+			file.write("{}, {}, {}; {}\n".format(point.x, point.y, point.z, count))
+	print "Done"
+

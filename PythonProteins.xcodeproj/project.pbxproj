@@ -39,6 +39,7 @@
 		96D2926C1C5B0B5F002E842F /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		96D2926D1C5B124C002E842F /* secondary_structure.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = secondary_structure.py; sourceTree = "<group>"; };
 		96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = sparc_distribution.py; sourceTree = "<group>"; };
+		96E3E17C1C6D8B2B00A22AF3 /* reference_state.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = reference_state.py; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -67,6 +68,7 @@
 				9652F91A1A3CC30500A37E22 /* distributions.py */,
 				9652F92C1A3E324600A37E22 /* generic_distributions.py */,
 				96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */,
+				96E3E17C1C6D8B2B00A22AF3 /* reference_state.py */,
 				961253651A7EC28400231E37 /* permissions.py */,
 			);
 			name = Distributions;
