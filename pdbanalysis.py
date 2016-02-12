@@ -2028,8 +2028,8 @@ def correlate_charmm_sparc(input):
 
 #MARK: Reference State
 
-def generate_distance_constrained_bins(output, radius=10.0, step=1.0):
-	"""In the file determined by output, writes one entry for every bucket in a sphere of the provided radius. For each bucket, it writes the number of buckets of side length 'step' that share distances within the range of distances in that bucket."""
+def _compute_ranges(radius, step):
+	"""Computes the distance ranges for every position zone."""
 	ranges = {}
 	for point in Point3D.zero().iteroffsets(radius, step=step):
 		if point.x >= 0.0:
@@ -2054,6 +2054,11 @@ def generate_distance_constrained_bins(output, radius=10.0, step=1.0):
 		maxdist = Point3D(maxx, maxy, maxz).magnitude()
 		if mindist >= radius: continue
 		ranges[point] = (mindist, maxdist)
+	return ranges
+
+def generate_distance_constrained_bins(output, radius=10.0, step=1.0):
+	"""In the file determined by output, writes one entry for every bucket in a sphere of the provided radius. For each bucket, it writes the number of buckets of side length 'step' that share distances within the range of distances in that bucket."""
+	ranges = _compute_ranges(radius, step)
 	print "Evaluated all points"
 	with open(output, "w") as file:
 		currx = 0.0
@@ -2072,3 +2077,46 @@ def generate_distance_constrained_bins(output, radius=10.0, step=1.0):
 			file.write("{}, {}, {}; {}\n".format(point.x, point.y, point.z, count))
 	print "Done"
 
+def sparc_distance_constrained_bins(input, output, radius=10.0, step=1.0):
+	"""This function performs a similar task as generate_distance_constrained_bins, except that the output is a file for each amino acid combination and for every zone for which there were instances in the dataset. The frequency provided is the number of instances in the opposite direction that could have had the same zone. In other words, for each position zone p_q, the output is the number of occurrences of any zone q_p for which |p_q| ~ |q_p|. The input should be a folder of frequencies."""
+	
+	if not os.path.exists(output): os.mkdir(output)
+	files = os.listdir(input)
+	percentage = 0
+	alpha_frequencies = [[{} for i in xrange(AMINO_ACID_COUNT)] for j in xrange(AMINO_ACID_COUNT)]
+	for n, indfile in enumerate(files):
+		if indfile.find(".txt") == -1: continue
+		if math.floor(float(n) / len(files) * 10) > percentage:
+			percentage = math.floor(float(n) / len(files) * 10)
+			print percentage * 10, "percent complete"
+		tag1, tag2 = indfile[0:-4].split('-')
+		tag1 = int(tag1)
+		tag2 = int(tag2)
+		with open(join(input, indfile), 'r') as file:
+			for line in file:
+				if ";" not in line and len(line.strip()) > 0:
+					continue
+				ptcomps, freq = line.strip().split(";")
+				alpha = Point3D(*ptcomps.split(","))
+				alpha_frequencies[tag1][tag2][alpha] = [float(freq), 0]
+	#Now, given that data, go through each amino acid combo and find its reverses
+	print "Done reading"
+	ranges = _compute_ranges(radius, step)
+	for i in xrange(AMINO_ACID_COUNT):
+		for j in xrange(AMINO_ACID_COUNT):
+			print i, j
+			with open(os.path.join(output, str(i) + "-" + str(j) + ".txt"), "w") as file:
+				for alpha in alpha_frequencies[i][j]:
+					if alpha_frequencies[i][j][alpha][1]: continue
+					baserange = ranges[alpha]
+					count = 0
+					simdist = [alpha]
+					for point2, range in ranges.iteritems():
+						if ((range[0] >= baserange[0] and range[0] <= baserange[1]) or (range[1] >= baserange[0] and range[1] <= baserange[1])):
+							if point2 in alpha_frequencies[j][i]:
+								count += alpha_frequencies[j][i][point2][0]
+							if point2 != alpha and point2 in alpha_frequencies[i][j] and range == baserange:
+								simdist.append(point2)
+					for point in simdist:
+						alpha_frequencies[i][j][point][1] = 1
+						file.write("{}, {}, {}; {}\n".format(point.x, point.y, point.z, count))

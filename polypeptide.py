@@ -12,24 +12,33 @@ class Polypeptide(object):
 		self.hashtable = AAHashTable()
 		self.aminoacids = []
 		self.secondary_structures = []
+		self.mass = 0.0
 		if preaas:
 			for i, aa in enumerate(preaas):
 				aa = aa.withtag(i)
 				self.hashtable.add(aa)
 				self.aminoacids.append(aa)
+				if aa:
+					self.mass += aa.mass
 	
 	def randomcoil(self, seq, permissions=None, struct_permissions=None):
 		del self.hashtable
+		self.mass = 0.0
 		self.hashtable = AAHashTable()
 		if len(self.secondary_structures) and struct_permissions:
 			self.aminoacids = generate_randomcoil(seq, permissions=permissions, secondary_structures=self.secondary_structures, struct_permissions=struct_permissions)
 		else:
 			self.aminoacids = generate_randomcoil(seq, permissions)
-		for aa in self.aminoacids: self.hashtable.add(aa)
+		for aa in self.aminoacids:
+			if aa: self.mass += aa.mass
+			self.hashtable.add(aa)
 	
 	def add_aa(self, aa):
 		self.aminoacids.append(aa)
 		self.hashtable.add(aa)
+		self.mass = 0.0
+		for aa in self.aminoacids:
+			if aa: self.mass += aa.mass
 
 	def __str__(self):
 		descriptions = [self.aminoacids[x].__str__() for x in range(len(self.aminoacids))]
@@ -94,6 +103,26 @@ class Polypeptide(object):
 			if aa.has_break: chain += 1
 		ret += "ENDMDL\n"
 		return ret
+
+	def rg(self):
+		"""Calculates the radius of gyration of the polypeptide."""
+		#First compute the center of mass
+		cm = Point3D.zero()
+		total_mass = 0.0
+		for aa in self.aminoacids:
+			if not aa: continue
+			cm = cm.add(aa.acarbon.multiply(aa.mass))
+			total_mass += aa.mass
+		cm = cm.multiply(1.0 / total_mass)
+		
+		#Now compute Rg
+		rg = 0.0
+		for aa in self.aminoacids:
+			if not aa: continue
+			rg += aa.mass * (aa.acarbon.distanceto(cm) ** 2)
+		rg = math.sqrt(rg / total_mass)
+		print "Radius of gyration:", rg
+		return rg
 
 	def center(self):
 		"""Center the polypeptide at the origin of the global coordinate system."""
@@ -203,8 +232,11 @@ class Polypeptide(object):
 			self.aminoacids.pop()
 		
 		self.hashtable = AAHashTable()
+		self.mass = 0.0
 		for aa in self.aminoacids:
-			if aa: self.hashtable.add(aa)
+			if aa:
+				self.mass += aa.mass
+				self.hashtable.add(aa)
 
 		if secondary_structure:
 			if current_sheet:

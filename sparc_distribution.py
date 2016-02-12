@@ -68,23 +68,37 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 				zone = aa2.tolocal(aa.acarbon).floor()
 				subscore = self.alpha_frequency(tag2, tag1, zone)
 				if subscore == 0:
-					subscore = 0.001
-				#subscore = -math.log(subscore / self.median_frequencies[tag2][tag1] * self.total_interactions[tag2][tag1] / self.total_median)
-				zone2 = aa.tolocal(aa2.acarbon).floor()
-				subscore2 = self.alpha_frequency(tag1, tag2, zone2)
+					subscore = 1e-2
+				subscore = -math.log(subscore / self.median_frequencies[tag2][tag1] * self.total_interactions[tag2][tag1] / self.total_median)
+				zone = aa.tolocal(aa2.acarbon).floor()
+				subscore2 = self.alpha_frequency(tag1, tag2, zone)
 				if subscore2 == 0:
-					subscore2 = 0.001
-				#subscore2 = -math.log(subscore2 / self.median_frequencies[tag1][tag2] * self.total_interactions[tag1][tag2] / self.total_median)
-				subscore = -math.log((subscore * subscore2 / self.total_interactions[tag2][tag1] ** 2) / reference_state.position_ref(zone))
-				score += subscore
+					subscore2 = 1e-2
+				subscore2 = -math.log(subscore2 / self.median_frequencies[tag1][tag2] * self.total_interactions[tag1][tag2] / self.total_median)
+				score += subscore + subscore2
 				if onlyone:
-					subscore2 = -math.log((subscore2 / self.total_interactions[tag1][tag2]) / reference_state.position_ref(zone))
 					print subscore, subscore2
 					return (subscore * self.weight, subscore2 * self.weight, self.total_interactions[tag1][tag2], self.total_interactions[tag2][tag1])
 				if aa.tag in taglist:
 					taglist[aa.tag].append(aa2.tag)
 				else:
 					taglist[aa.tag] = [aa2.tag]
+					
+				'''				zone = aa2.tolocal(aa.acarbon).floor()
+				subscore = self.alpha_frequency(tag2, tag1, zone)
+				if subscore == 0:
+					subscore = 1e-10
+				zone2 = aa.tolocal(aa2.acarbon).floor()
+				subscore2 = self.alpha_frequency(tag1, tag2, zone2)
+				if subscore2 == 0:
+					subscore2 = 1e-10
+				subscore = -math.log(subscore / self.median_frequencies[tag2][tag1] * self.total_interactions[tag2][tag1] / self.total_median)
+				subscore2 = -math.log(subscore2 / self.median_frequencies[tag1][tag2] * self.total_interactions[tag1][tag2] / self.total_median)
+				#if not consec:
+				#	print subscore * subscore2, self.total_interactions[tag2][tag1] ** 2, reference_state.position_ref(zone), -math.log((subscore * subscore2 / self.total_interactions[tag2][tag1] ** 2) / reference_state.position_ref(zone))
+				#subscore = -math.log((subscore * subscore2 / (self.total_interactions[tag2][tag1] ** 2)) / reference_state.position_ref(zone))
+				score += subscore + subscore2
+				'''
 		return score * self.weight
 	
 	def load_frequencies(self, path):

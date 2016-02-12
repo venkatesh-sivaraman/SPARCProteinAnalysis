@@ -33,6 +33,29 @@ TEMPERATURE = 298
 running_lcs_calculations = 0
 running_gcs_calculations = 0
 
+aa_masses = {
+	"ILE" : 131.1736,
+	"LEU" : 131.1736,
+	"LYS" : 146.1882,
+	"MET" : 149.2124,
+	"PHE" : 165.1900,
+	"THR" : 119.1197,
+	"TRP" :	204.2262,
+	"VAL" : 117.1469,
+	"ARG" : 174.2017,
+	"HIS" : 155.1552,
+	"ALA" : 89.0935,
+	"ASN" : 132.1184,
+	"ASP" : 133.1032,
+	"CYS" : 121.1590,
+	"GLU" : 147.1299,
+	"GLN" : 146.1451,
+	"GLY" : 75.0669,
+	"PRO" : 115.1310,
+	"SER" : 105.0930,
+	"TYR" : 181.1894
+}
+
 def reset_stats():
 	global running_lcs_calculations, running_gcs_calculations
 	#print "Local:", running_lcs_calculations, "Global:", running_gcs_calculations
@@ -189,6 +212,7 @@ class AminoAcid(object):
 	'Represents a single amino acid.'
 
 	def __init__(self, type, tag=0, acarbon=Point3D.zero(), nitrogen=Point3D.zero(), carbon=Point3D.zero(), sidechain=None):
+		self.mass = 0.0
 		self.type = type
 		self.tag = tag
 		self.acarbon = acarbon
@@ -316,7 +340,11 @@ class AminoAcid(object):
 				 2.0446,
 				 999999)
 		self.radius = radii[aacode(value)]
-	
+		if self.type in aa_masses:
+			self.mass = aa_masses[self.type]
+		else:
+			self.mass = 0.0
+
 	def add_observer(self, key, callback):
 		"""Pass in a string key ("acarbon" and "axes" at present) and a function object to be notified when the value changes.
 			Callback should accept three arguments: an AminoAcid object, key, and old value. (If key="axes", old value is a tuple of axes.)"""
@@ -635,22 +663,26 @@ class AAHashTable(object):
 			bucket.append(aa)
 	
 	def add(self, aa):
+		if not aa: return
 		bucket = self.buckets[self.hash_function(aa.acarbon)]
 		if (aa not in bucket):
 			aa.add_observer("acarbon", self.update_aa)
 			bucket.append(aa)
 
 	def remove(self, aa):
+		if not aa: return
 		bucket = self.buckets[self.hash_function(aa.acarbon)]
 		if (aa in bucket):
 			aa.remove_observer("acarbon", self.update_aa)
 			bucket.remove(aa)
 
 	def contains(self, aa):
+		if not aa: return
 		bucket = self.buckets[self.hash_function(aa.acarbon)]
 		return aa in bucket
 
 	def nearby_aa(self, aa, distance, consec=2):
+		if not aa: return []
 		bucket = self.buckets[self.hash_function(aa.acarbon)]
 		n = int(math.ceil(distance / box_dimension))
 		retVal = []

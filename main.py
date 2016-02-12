@@ -454,7 +454,8 @@ def supplement_natives(input):
 
 if __name__ == '__main__':
 	#generate_distance_constrained_bins("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/reference_states.txt")
-	test_sparc("/Users/venkatesh-sivaraman/Desktop/casp11.hardpart", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp_hard"),
+	sparc_distance_constrained_bins("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/short-range", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/short-range-ref")
+	#test_sparc("/Users/venkatesh-sivaraman/Desktop/casp11.hardpart", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp_hard"),
 	#supplement_natives("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp")
 	#tm_sparc_correlation("/Volumes/External Hard Drive/Science Fair 2014-15/decoy-tm", "/Volumes/External Hard Drive/Science Fair 2014-15/decoy-scores")
 	#permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Desktop/sciencefair/allowed-zones")

@@ -217,6 +217,8 @@ class MediumDistributionManager(DistributionManager):
 						else: comps = line.split()
 						coord = int(comps[0])
 						self.frequencies[idx][coord] = float(comps[1])
+		for idx in xrange(AMINO_ACID_COUNT):
+			self.median_frequencies[idx] = sum(self.frequencies[idx])# / float(len([f for f in self.frequencies[idx] if f != 0]))
 		print "Loaded medium frequencies"
 
 	def score(self, protein, data):
@@ -245,8 +247,14 @@ class MediumDistributionManager(DistributionManager):
 					f = less
 			else:
 				f = 0.0
-			f0 = self.median_frequencies[tag]
-			if f <= 0: f = 0.001
+			#f0 = self.median_frequencies[tag]
+			f = f / self.median_frequencies[tag]
+			density = 1.0 / (1.410 + 0.145 * math.exp(-protein.mass / 13.0)) # 0.73
+			volume = (density * 1e24) / (6.02e23) * protein.mass
+			N = len(protein.aminoacids)
+			f0 = ((1 - (4000 * math.pi) / (3 * volume)) ** (N - 1)) / (((3 * volume) / (4000 * math.pi) - 1) ** coord)
+			f0 *= float(math.factorial(N - 1) / (math.factorial(coord) * math.factorial(N - coord - 1)))
+			if f <= 0: f = 0.01
 			subscore = -math.log(f / f0)
 			score += subscore
 		return score * self.weight
