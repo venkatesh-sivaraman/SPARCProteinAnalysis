@@ -44,20 +44,23 @@ def load_dists(weights={frequency_nonconsec_disttype: 1.0, frequency_consec_dist
 	if not reference_state.is_initialized():
 		reference_state.load_reference_state("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/reference_states.txt")
 	nonconsec = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/nonconsec"
-	consec = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/consec"
+	nonconsec_ref = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/nonconsec-ref"
+	consec = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/consec+secondary"
+	consec_ref = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/consec+secondary-ref"
 	medium = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/medium"
 	short_range = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/short-range"
+	short_range_ref = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/short-range-ref"
 	secondary = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/secondary"
 	if concurrent == False:
 		dist1 = MediumDistributionManager(medium)
 		dist1.weight = weights[medium_disttype]
 		dist2 = SPARCBasicDistributionManager(consec, True, blocks_sec_struct=True)
 		dist2.weight = weights[frequency_consec_disttype]
-		dist3 = SPARCBasicDistributionManager(nonconsec, False)
+		dist3 = SPARCBasicDistributionManager(nonconsec, False, references=nonconsec_ref)
 		dist3.weight = weights[frequency_nonconsec_disttype]
 		dist4 = SPARCSecondaryDistributionManager(secondary)
 		dist4.weight = weights[frequency_consec_disttype]
-		dist5 = SPARCBasicDistributionManager(short_range, False, short_range=True)
+		dist5 = SPARCBasicDistributionManager(short_range, False, short_range=True, references=short_range_ref)
 		dist5.weight = weights[frequency_nonconsec_disttype]
 		return [dist1, dist2, dist3, dist4, dist5]
 	processes = []
@@ -66,10 +69,10 @@ def load_dists(weights={frequency_nonconsec_disttype: 1.0, frequency_consec_dist
 		dist = cls(*args)
 		dist.weight = weights[dist.type]
 		q.put(dist)
-	p1 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, nonconsec, False))
+	p1 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, nonconsec, False), kwargs={"references": nonconsec_ref})
 	processes.append(p1)
 	p1.start()
-	p2 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, consec, True, True))
+	p2 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, consec, True, True), kwargs={"references": consec_ref})
 	processes.append(p2)
 	p2.start()
 	p3 = multiprocessing.Process(target=generate_distmanager, args=(MediumDistributionManager, queue, medium))
@@ -78,7 +81,7 @@ def load_dists(weights={frequency_nonconsec_disttype: 1.0, frequency_consec_dist
 	p4 = multiprocessing.Process(target=generate_distmanager, args=(SPARCSecondaryDistributionManager, queue, secondary))
 	processes.append(p4)
 	p4.start()
-	p5 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, short_range, False, False, True))
+	p5 = multiprocessing.Process(target=generate_distmanager, args=(SPARCBasicDistributionManager, queue, short_range, False, False, True), kwargs={"references": short_range_ref})
 	processes.append(p5)
 	p5.start()
 
@@ -121,7 +124,7 @@ def process_decoys_file((input, output, nativepath)):
 	dists = load_dists(concurrent=False)
 	distributions = ["", "", "", "", ""]
 	for dist in dists:
-		if dist.identifier == "consec": distributions[0] = dist
+		if dist.identifier == "consec+secondary": distributions[0] = dist
 		elif dist.identifier == "secondary": distributions[1] = dist
 		elif dist.identifier == "short-range": distributions[2] = dist
 		elif dist.identifier == "nonconsec": distributions[3] = dist
@@ -191,6 +194,7 @@ def test_sparc(input, output):
 		process_decoys_file((join(input, file), join(output, file + ".txt"), None))
 		gc.collect()'''
 	pool = multiprocessing.Pool(processes=2, initializer=decoy_initializer, maxtasksperchild=1)
+	process_decoys_file((join(input, "T0759"), join(output, "T0759.txt"), "/Users/venkatesh-sivaraman/Downloads/casp11.targets_unsplitted.release11242014"))
 	zipped = [(join(input, file), join(output, file + ".txt"), "/Users/venkatesh-sivaraman/Downloads/casp11.targets_unsplitted.release11242014") for file in files]
 	#print zipped
 	pool.map(process_decoys_file, zipped)
@@ -454,8 +458,8 @@ def supplement_natives(input):
 
 if __name__ == '__main__':
 	#generate_distance_constrained_bins("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/reference_states.txt")
-	sparc_distance_constrained_bins("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/short-range", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/short-range-ref")
-	#test_sparc("/Users/venkatesh-sivaraman/Desktop/casp11.hardpart", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp_hard"),
+	#sparc_distance_constrained_bins("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/consec+secondary", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/SPARC 2/consec+secondary-ref")
+	test_sparc("/Users/venkatesh-sivaraman/Desktop/casp11.hardpart", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp_hard"),
 	#supplement_natives("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp")
 	#tm_sparc_correlation("/Volumes/External Hard Drive/Science Fair 2014-15/decoy-tm", "/Volumes/External Hard Drive/Science Fair 2014-15/decoy-scores")
 	#permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Desktop/sciencefair/allowed-zones")

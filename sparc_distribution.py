@@ -5,9 +5,10 @@ import reference_state
 class SPARCBasicDistributionManager (FrequencyDistributionManager):
 	"""The basic distribution handles just frequencies. It represents a noncommutative potential function for EITHER nonconsecutive or consecutive data."""
 	
-	def __init__(self, frequencies_path, isconsec=False, blocks_sec_struct=False, short_range=2):
+	def __init__(self, frequencies_path, isconsec=False, blocks_sec_struct=False, short_range=2, references=None):
 		"""frequencies_path should be a path to a directory of alpha zones paired with frequencies for individual amino acid pairs. If blocks_sec_struct is True, then secondary structures will be ignored. To treat secondary structures exclusively, use a SPARCSecondaryDistributionManager."""
 		self.alpha_frequencies = {}
+		self.reference_frequencies = {}
 		self.total_interactions = [[0 for i in xrange(AMINO_ACID_COUNT)] for j in xrange(AMINO_ACID_COUNT)]
 		self.median_frequencies = [[0 for i in xrange(AMINO_ACID_COUNT)] for j in xrange(AMINO_ACID_COUNT)]
 		self.blocks_secondary_structures = blocks_sec_struct
@@ -17,6 +18,8 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		a = datetime.datetime.now()
 		self.load_frequencies(frequencies_path)
 		b = datetime.datetime.now()
+		if references:
+			self.load_references(references)
 		print "Loaded {0} in {1:.4f} sec.".format(self, (b - a).total_seconds())
 		self.weight = 1.0
 		if isconsec:
@@ -29,9 +32,15 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 	def alpha_frequency(self, type1, type2, zone):
 		"""This helper function retrieves the frequency of 'zone' in the loaded frequency data. type1 refers to the type (code) of the amino acid that serves as the origin of the zone space, while type2 is the amino acid to which the zone refers."""
 		if zone in self.alpha_frequencies:
-			return self.alpha_frequencies[zone][type1][type2]
+			ref_zone = zone
+			if ref_zone.x < 0.0: ref_zone.x = -ref_zone.x - 1.0
+			if ref_zone.y < 0.0: ref_zone.y = -ref_zone.y - 1.0
+			if ref_zone.z < 0.0: ref_zone.z = -ref_zone.z - 1.0
+			if ref_zone not in self.reference_frequencies:
+				return (self.alpha_frequencies[zone][type1][type2], 0)
+			return (self.alpha_frequencies[zone][type1][type2], self.reference_frequencies[ref_zone][type1][type2])
 		else:
-			return 0
+			return (0, 0)
 	
 	def score(self, protein, data, isolate=False, onlyone=False, prior=2):
 		"""For frequency distributions, pass in an array of hypothetical aminoacids. This implementation returns the product of the frequencies of each pairwise interaction. If isolate=True, only the amino acids in data will be considered for the energy calculation.
@@ -66,16 +75,21 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 				if tag2 >= AMINO_ACID_COUNT: tag2 = 0
 				
 				zone = aa2.tolocal(aa.acarbon).floor()
-				subscore = self.alpha_frequency(tag2, tag1, zone)
+				subscore, retro1 = self.alpha_frequency(tag2, tag1, zone)
 				if subscore == 0:
 					subscore = 1e-2
-				subscore = -math.log(subscore / self.median_frequencies[tag2][tag1] * self.total_interactions[tag2][tag1] / self.total_median)
+				#subscore = -math.log(subscore / self.median_frequencies[tag2][tag1] * self.total_interactions[tag2][tag1] / self.total_median)
 				zone = aa.tolocal(aa2.acarbon).floor()
-				subscore2 = self.alpha_frequency(tag1, tag2, zone)
+				subscore2, retro2 = self.alpha_frequency(tag1, tag2, zone)
 				if subscore2 == 0:
 					subscore2 = 1e-2
-				subscore2 = -math.log(subscore2 / self.median_frequencies[tag1][tag2] * self.total_interactions[tag1][tag2] / self.total_median)
-				score += subscore + subscore2
+				#subscore2 = -math.log(subscore2 / self.median_frequencies[tag1][tag2] * self.total_interactions[tag1][tag2] / self.total_median)
+				if consec == 1:
+					subscore = -math.log((subscore * subscore2 / (self.total_interactions[tag2][tag1] ** 2)) / reference_state.position_ref(zone))
+				else:
+					print zone, subscore, subscore2, retro1, self.total_interactions[tag2][tag1], reference_state.position_ref(zone), -math.log((subscore * subscore2 / (self.total_interactions[tag2][tag1] * retro1)) / reference_state.position_ref(zone))
+					subscore = -math.log((subscore * subscore2 / (self.total_interactions[tag2][tag1] * retro1)) / reference_state.position_ref(zone))
+				score += subscore
 				if onlyone:
 					print subscore, subscore2
 					return (subscore * self.weight, subscore2 * self.weight, self.total_interactions[tag1][tag2], self.total_interactions[tag2][tag1])
@@ -132,6 +146,30 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		s = sorted([x for list1 in self.total_interactions for x in list1])
 		self.total_median = sum(s) / float(len(s)) #s[int(len(s) / 2.0)]
 		print "Loaded frequencies"
+
+	def load_references(self, path):
+		files = os.listdir(path)
+		percentage = 0
+		self.reference_frequencies = {}
+		for n, indfile in enumerate(files):
+			if indfile.find(".txt") == -1: continue
+			if math.floor(float(n) / len(files) * 10) > percentage:
+				percentage = math.floor(float(n) / len(files) * 10)
+				print percentage * 10, "percent complete (references)"
+			tag1, tag2 = indfile[0:-4].split('-')
+			tag1 = int(tag1)
+			tag2 = int(tag2)
+			with open(join(path, indfile), 'r') as file:
+				for line in file:
+					if ";" not in line and len(line.strip()) > 0:
+						continue
+					ptcomps, freq = line.strip().split(";")
+					alpha = Point3D(*ptcomps.split(","))
+					if alpha not in self.reference_frequencies:
+						self.reference_frequencies[alpha] = [[0 for i in xrange(AMINO_ACID_COUNT)] for k in xrange(AMINO_ACID_COUNT)]
+					self.reference_frequencies[alpha][tag1][tag2] = float(freq)
+		print "Loaded references"
+
 
 class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 	"""This specialized distribution manager handles frequencies for secondary structures."""

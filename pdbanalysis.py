@@ -2028,7 +2028,7 @@ def correlate_charmm_sparc(input):
 
 #MARK: Reference State
 
-def _compute_ranges(radius, step):
+def _compute_ranges(radius, step, appendage=None):
 	"""Computes the distance ranges for every position zone."""
 	ranges = {}
 	for point in Point3D.zero().iteroffsets(radius, step=step):
@@ -2053,7 +2053,10 @@ def _compute_ranges(radius, step):
 		mindist = Point3D(minx, miny, minz).magnitude()
 		maxdist = Point3D(maxx, maxy, maxz).magnitude()
 		if mindist >= radius: continue
-		ranges[point] = (mindist, maxdist)
+		if appendage is not None:
+			ranges[point] = [mindist, maxdist, appendage]
+		else:
+			ranges[point] = (mindist, maxdist)
 	return ranges
 
 def generate_distance_constrained_bins(output, radius=10.0, step=1.0):
@@ -2101,22 +2104,23 @@ def sparc_distance_constrained_bins(input, output, radius=10.0, step=1.0):
 				alpha_frequencies[tag1][tag2][alpha] = [float(freq), 0]
 	#Now, given that data, go through each amino acid combo and find its reverses
 	print "Done reading"
-	ranges = _compute_ranges(radius, step)
+	ranges = _compute_ranges(radius, step, appendage=0)
 	for i in xrange(AMINO_ACID_COUNT):
 		for j in xrange(AMINO_ACID_COUNT):
 			print i, j
 			with open(os.path.join(output, str(i) + "-" + str(j) + ".txt"), "w") as file:
-				for alpha in alpha_frequencies[i][j]:
-					if alpha_frequencies[i][j][alpha][1]: continue
-					baserange = ranges[alpha]
+				for alpha, baserange in ranges.iteritems():
+					if baserange[2] == 1 or alpha.x < 0.0 or alpha.y < 0.0 or alpha.z < 0.0: continue
 					count = 0
 					simdist = [alpha]
 					for point2, range in ranges.iteritems():
 						if ((range[0] >= baserange[0] and range[0] <= baserange[1]) or (range[1] >= baserange[0] and range[1] <= baserange[1])):
 							if point2 in alpha_frequencies[j][i]:
 								count += alpha_frequencies[j][i][point2][0]
-							if point2 != alpha and point2 in alpha_frequencies[i][j] and range == baserange:
+							if point2 != alpha and point2 in alpha_frequencies[i][j] and range == baserange and point2.x >= 0.0 and point2.y >= 0.0 and point2.z >= 0.0:
 								simdist.append(point2)
 					for point in simdist:
-						alpha_frequencies[i][j][point][1] = 1
+						ranges[point][2] = 1
 						file.write("{}, {}, {}; {}\n".format(point.x, point.y, point.z, count))
+			for point, range in ranges.iteritems():
+				range[2] = 0
