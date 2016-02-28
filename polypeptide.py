@@ -40,6 +40,13 @@ class Polypeptide(object):
 		for aa in self.aminoacids:
 			if aa: self.mass += aa.mass
 
+	def add_aas(self, aas):
+		self.mass = 0.0
+		for aa in aas:
+			self.aminoacids.append(aa)
+			self.hashtable.add(aa)
+			if aa: self.mass += aa.mass
+
 	def __str__(self):
 		descriptions = [self.aminoacids[x].__str__() for x in range(len(self.aminoacids))]
 		return "Polypeptide, %i amino acids:\n\t" % len(self.aminoacids) + str(descriptions)
@@ -87,18 +94,18 @@ class Polypeptide(object):
 		chain_letters = string.ascii_uppercase
 		chain = 0
 		for aa in self.aminoacids:
-			ret += "ATOM  {0:>5}  N   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag, "%.3f" % aa.nitrogen.x, "%.3f" % aa.nitrogen.y, "%.3f" % aa.nitrogen.z)
+			ret += "ATOM  {0:>5}  N   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.nitrogen.x, "%.3f" % aa.nitrogen.y, "%.3f" % aa.nitrogen.z)
 			idx += 1
-			ret += "ATOM  {0:>5}  CA  {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag, "%.3f" % aa.acarbon.x, "%.3f" % aa.acarbon.y, "%.3f" % aa.acarbon.z)
+			ret += "ATOM  {0:>5}  CA  {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.acarbon.x, "%.3f" % aa.acarbon.y, "%.3f" % aa.acarbon.z)
 			idx += 1
 			h = aa.toglobal(Point3D(1.1, 0.0, math.acos(-1.0 / 3.0)).tocartesian())
-			ret += "ATOM  {0:>5}  H   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag, "%.3f" % h.x, "%.3f" % h.y, "%.3f" % h.z)
+			ret += "ATOM  {0:>5}  H   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % h.x, "%.3f" % h.y, "%.3f" % h.z)
 			idx += 1
-			ret += "ATOM  {0:>5}  C   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag, "%.3f" % aa.carbon.x, "%.3f" % aa.carbon.y, "%.3f" % aa.carbon.z)
+			ret += "ATOM  {0:>5}  C   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.carbon.x, "%.3f" % aa.carbon.y, "%.3f" % aa.carbon.z)
 			idx += 1
 			for atom, location in aa.otheratoms.iteritems():
 				location = aa.toglobal(location)
-				ret += "ATOM  {0:>5}  {1:<4}{2} {3}{4:>4}    {5:>8}{6:>8}{7:>8}\n".format(idx, atom.strip(), aa.type, chain_letters[chain], aa.tag, "%.3f" % location.x, "%.3f" % location.y, "%.3f" % location.z)
+				ret += "ATOM  {0:>5}  {1:<4}{2} {3}{4:>4}    {5:>8}{6:>8}{7:>8}\n".format(idx, atom.strip(), aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % location.x, "%.3f" % location.y, "%.3f" % location.z)
 				idx += 1
 			if aa.has_break: chain += 1
 		ret += "ENDMDL\n"
@@ -159,9 +166,13 @@ class Polypeptide(object):
 		
 			if secondary_structure:
 				if line.find('HELIX') == 0:
-					start_seq = int(line[22:26])
-					end_seq = int(line[34:38])
-					type = int(line[39:41])
+					start_seq = int(line[22:25])
+					end_seq = int(line[34:37])
+					type = line[39:41]
+					if type[1] in "1234567890":
+						type = int(type)
+					else:
+						type = int(type[0])
 					chain_start = line[19]
 					chain_end = line[31]
 					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
@@ -259,26 +270,26 @@ class Polypeptide(object):
 		return find_secondary_structure(self.secondary_structures, aa_idx)
 
 	def add_secondary_structures(self, sec_struct_string, format='csv'):
-		"""Takes a string of secondary structures in PDB or CSV format, depending on the format option, and adds them to the secondary structure array. CSV format should be 'type', 'subtype', 'start', 'end'. For instance, helix,1,3,6 covers amino acids 3-6."""
+		"""Takes a string of secondary structures in PDB or CSV format, depending on the format option, and adds them to the secondary structure array. CSV format should be 'type', 'subtype', 'start', 'end'. For instance, helix,1,3,6 covers amino acids at indices 2-5 (values are 1-indexed)."""
 		current_sheet = None
 		self.secondary_structures = []
 		if format == 'csv':
 			for line in sec_struct_string.split('\n'):
 				comps = line.split(',')
 				if comps[0].lower() == 'helix':
-					self.secondary_structures.append(Helix(int(comps[2]), int(comps[3]), int(comps[1])))
+					self.secondary_structures.append(Helix(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1])))
 				elif comps[0].lower() == 'sheet':
 					if int(comps[1]) == 0:
 						if current_sheet: self.secondary_structures.append(sheet)
-						current_sheet = Sheet(int(comps[2]), int(comps[3]), int(comps[1]))
+						current_sheet = Sheet(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1]))
 					else:
-						current_sheet.add_strand(int(comps[2]), int(comps[3]), int(comps[1]))
+						current_sheet.add_strand(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1]))
 				else: print "Unknown secondary structure"
 		else:
 			for line in sec_struct_string.split('\n'):
 				if line.find('HELIX') == 0:
-					start_seq = int(line[22:26])
-					end_seq = int(line[34:38])
+					start_seq = int(line[22:26]) - 1
+					end_seq = int(line[34:38]) - 1
 					type = int(line[39:41])
 					chain_start = line[19]
 					chain_end = line[31]
@@ -286,8 +297,8 @@ class Polypeptide(object):
 					self.secondary_structures.append(Helix(start_seq, end_seq, type))
 				elif line.find('SHEET') == 0:
 					sense = int(line[38:40])
-					start_seq = int(line[23:26])
-					end_seq = int(line[34:37])
+					start_seq = int(line[23:26]) - 1
+					end_seq = int(line[34:37]) - 1
 					chain_start = line[21]
 					chain_end = line[32]
 					if chain_start.upper() != "A" or chain_end.upper() != "A": continue

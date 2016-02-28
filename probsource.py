@@ -2,7 +2,7 @@
 	
 	The provided subclass of ProbabilitySource, DistributionProbabilitySource, acts as a coordinator of DistributionManager objects. Initialize a DistributionProbabilitySource object with instances of the provided subclasses of DistributionManager, then pass it to folding_iteration() to apply frequency weighting."""
 
-from aminoacids import *
+from polypeptide import *
 from functools import partial
 import numpy as np
 from numpy import matlib
@@ -33,6 +33,13 @@ def to_cdf(probabilities):
 def score_to_probability(score):
 	"""This function converts a score (which is negative for favorable results and positive for non-favorable ones) to a probability (which is always >= 0). This probability is not scaled to 0-1."""
 	return math.exp(-score / 100.0)
+
+def sample_cdf(probabilities):
+	"""This helper function takes a list of probabilities in tuple form (conformation, probability number), representing a cumulative distribution function (cdf). It chooses a random one and returns its conformation."""
+	rand = random.uniform(0.0, probabilities[-1][1])
+	selected_conformation = next((x for x in probabilities if x[1] >= rand), None)
+	assert selected_conformation is not None, "No valid conformation found with probability number greater than %.3f" % rand
+	return selected_conformation[0]
 
 #MARK: - ProbabilitySource
 
@@ -273,8 +280,8 @@ class AAProbabilitySource(ProbabilitySource):
 		self.mode = psource_erratic_mode
 		self.erratic_proximity = 0.6
 	
-	def iter_ensemble_pivot(self, aminoacids, anchor, prior=True, proximity=1.0):
-		"""This new method (2/6/15) iterates the possible conformations created by pivoting a segment around the anchor (should be an AminoAcid). This function does not take into account the connectivity with the next unmutated segment."""
+	def iter_ensemble_pivot(self, aminoacids, anchor, prior=True, proximity=1.0, maxsamples=-1, connected=False):
+		"""This new method (2/6/15) iterates the possible conformations created by pivoting a segment around the anchor (should be an AminoAcid). This function does not take into account the connectivity with the next unmutated segment. However, the connected parameter specifies whether the anchor is connected to the protein on the other side. This helps to produce realistic angles during a series of pivots."""
 		assert self.permissions is not None, "Cannot perform a pivot without a PermissionsManager."
 		if prior is True:	aa = aminoacids[0]
 		else:				aa = aminoacids[-1]
@@ -282,7 +289,15 @@ class AAProbabilitySource(ProbabilitySource):
 		if sec_struct and self.sec_struct_permissions:
 			allowed_conformations = self.sec_struct_permissions.allowed_conformations(aa, anchor, sec_struct[0].type, sec_struct[1].identifiers[0], prior)
 		else:
-			allowed_conformations = self.permissions.allowed_conformations(aa, anchor, prior)
+			opposite = None
+			if prior and anchor.tag > 0 and connected:
+				opposite = self.protein.aminoacids[anchor.tag - 1]
+			elif not prior and anchor.tag < len(self.protein.aminoacids) - 1 and connected:
+				opposite = self.protein.aminoacids[anchor.tag + 1]
+			allowed_conformations = self.permissions.allowed_conformations(aa, anchor, prior, opposite_aa=opposite)
+
+		random.shuffle(allowed_conformations)
+		numsamples = 0
 		for pz in allowed_conformations:
 			if len(aminoacids) > 1:
 				conformation = rotate_segment_anchor(aminoacids, pz, prior)
@@ -302,10 +317,13 @@ class AAProbabilitySource(ProbabilitySource):
 					break
 			if valid is not True: continue
 			yield conformation
+			numsamples += 1
+			if maxsamples > 0 and numsamples > maxsamples:
+				return
 
 	def probabilities(self, aminoacids, anchors=[], **kwargs):
 		"""This overridden function generates a list of possible conformations and their probabilities, as does its superclass's implementation. However, this implementation consults its list of DistributionManagers, polling their score() method for each amino acid in the segment. These scores are summed for each configuration, and the resulting score is transformed into a probability.
-			NOTES: Pass in an integer for keyword argument "primanchor" to signify which anchor is used as a pivot point for mutation. Pivoting will not be used unless you specify a value for "primanchor". Also, you should provide a Boolean for keyword argument "prior" to signify whether or not primanchor is before the segment. If not provided, "prior" is assumed True."""
+			NOTES: Pass in an integer for keyword argument "primanchor" to signify which anchor is used as a pivot point for mutation. Pivoting will not be used unless you specify a value for "primanchor". Also, you should provide a Boolean for keyword argument "prior" to signify whether or not primanchor is before the segment. If not provided, "prior" is assumed True. Pass the keyword "connected" in a cascade of modifications to show whether the anchor(s) are connected to their outer segments."""
 		probabilities = []
 		current_score = sum(d.score(self.protein, aminoacids) for d in self.distributions)
 		if self.mode == psource_erratic_mode:
@@ -325,26 +343,41 @@ class AAProbabilitySource(ProbabilitySource):
 					current_score += d.score(self.protein, aminoacids)
 				else:
 					current_score += d.score(self.protein, aminoacids, prior=prior)
-			for conformation in self.iter_ensemble_pivot(aminoacids, anchors[kwargs["primanchor"]], prior, proximity * 2.0):
+			connected = False
+			if "connected" in kwargs: connected = kwargs["connected"]
+			for conformation in self.iter_ensemble_pivot(aminoacids, anchors[kwargs["primanchor"]], prior, proximity * 2.0, connected=connected):
 				hypotheticals = [aminoacids[i].hypothetical(conformation[i]) for i in xrange(len(aminoacids))]
 				score = 0.0
+				invalid = False
 				for d in self.distributions:
 					if d.type != distributions.frequency_consec_disttype:
-						score += d.score(self.protein, hypotheticals)
+						subscore = d.score(self.protein, hypotheticals)
 					else:
-						score += d.score(self.protein, hypotheticals, prior=prior)
+						subscore = d.score(self.protein, hypotheticals, prior=prior)
+					if d.type == distributions.frequency_nonconsec_disttype and d.short_range == True:
+						if subscore > 5.0:
+							invalid = True
+							break
+					score += subscore
+				if invalid: continue
 				if self.mode != psource_gentle_mode or score < current_score:
 					probabilities.append([conformation, score_to_probability(score / len(hypotheticals))])
 				del hypotheticals[:]
 			if len(probabilities) == 0:
-				for conformation in self.iter_ensemble_pivot(aminoacids, anchors[kwargs["primanchor"]], prior, 1000.0):
+				for conformation in self.iter_ensemble_pivot(aminoacids, anchors[kwargs["primanchor"]], prior, 1000.0, connected=connected):
 					hypotheticals = [aminoacids[i].hypothetical(conformation[i]) for i in xrange(len(aminoacids))]
 					score = 0.0
+					invalid = False
 					for d in self.distributions:
 						if d.type != distributions.frequency_consec_disttype:
-							score += d.score(self.protein, hypotheticals)
+							subscore = d.score(self.protein, hypotheticals)
 						else:
-							score += d.score(self.protein, hypotheticals, prior=prior)
+							subscore = d.score(self.protein, hypotheticals, prior=prior)
+						if d.type == distributions.frequency_nonconsec_disttype and d.short_range == True and subscore > 10.0:
+							invalid = True
+							break
+						score += subscore
+					if invalid: continue
 					if self.mode != psource_gentle_mode or score < current_score:
 						probabilities.append([conformation, score_to_probability(score / len(hypotheticals))])
 					del hypotheticals[:]
@@ -373,13 +406,23 @@ class AAProbabilitySource(ProbabilitySource):
 		if len(chain) == len(aminoacids) - 1:
 			#Connect the last amino acid in a permissible orientation to both chain[-1] and end.
 			if start.tag < end.tag:
+				second_last = None
 				if len(chain) > 0:
 					last = aminoacids[len(chain) - 1].hypothetical(chain[-1])
+					if len(chain) > 1:
+						second_last = aminoacids[len(chain) - 2].hypothetical(chain[-2])
 				else:
 					last = start
-				confs = self.permissions.allowed_conformations(aminoacids[-1], last)
+					if start.tag > 0:
+						second_last = self.protein.aminoacids[start.tag - 1]
+				sec_struct = self.protein.secondary_structure_aa(aminoacids[-1])
+				if sec_struct and self.sec_struct_permissions:
+					confs = self.sec_struct_permissions.allowed_conformations(aminoacids[-1], last, sec_struct[0].type, sec_struct[1].identifiers[0])
+					confs2 = self.sec_struct_permissions.allowed_conformations(aminoacids[-1], end, sec_struct[0].type, sec_struct[1].identifiers[0], prior=False)
+				else:
+					confs = self.permissions.allowed_conformations(aminoacids[-1], last, opposite_aa=second_last)
+					confs2 = self.permissions.allowed_conformations(aminoacids[-1], end, prior=False)
 				random.shuffle(confs)
-				confs2 = self.permissions.allowed_conformations(aminoacids[-1], end, prior=False)
 				random.shuffle(confs2)
 				for pz in confs:
 					for pz2 in confs2:
@@ -400,11 +443,20 @@ class AAProbabilitySource(ProbabilitySource):
 		else:
 			#Try to add one more amino acid in a permissible orientation.
 			if start.tag < end.tag:
+				second_last = None
 				if len(chain) > 0:
 					last = aminoacids[len(chain) - 1].hypothetical(chain[-1])
+					if len(chain) > 1:
+						second_last = aminoacids[len(chain) - 2].hypothetical(chain[-2])
 				else:
 					last = start
-				confs = self.permissions.allowed_conformations(aminoacids[len(chain)], last)
+					if start.tag > 0:
+						second_last = self.protein.aminoacids[start.tag - 1]
+				sec_struct = self.protein.secondary_structure_aa(aminoacids[len(chain)])
+				if sec_struct and self.sec_struct_permissions:
+					confs = self.sec_struct_permissions.allowed_conformations(aminoacids[len(chain)], last, sec_struct[0].type, sec_struct[1].identifiers[0])
+				else:
+					confs = self.permissions.allowed_conformations(aminoacids[len(chain)], last, opposite_aa=second_last)
 				#I'm using a constant number here to save on performance. Only 10 of the given conformations will be chosen, which still gives a total of 10^(n - 1) iterations before the last residue.
 				if len(confs) > 30:
 					confs = random.sample(confs, 30)
@@ -497,7 +549,6 @@ class AAProbabilitySource(ProbabilitySource):
 		else:
 			pre = self.protein.aminoacids[segment[0].tag - 1]
 			post = self.protein.aminoacids[segment[-1].tag + 1]
-			#print pre, segment[0], "...", segment[-1], post
 			if self.permissions.is_valid(segment[0], pre, prior=True) and self.permissions.is_valid(segment[-1], post, prior=False):
 				return True
 			else:
@@ -548,7 +599,7 @@ class AAProbabilitySource(ProbabilitySource):
 			cluster_range[1] = max(clusters[-1][3] * min_bound, clusters[-1][3] * max_bound)
 			
 		clusters[-1][2] /= float(clusters[-1][1] - clusters[-1][0])
-		print "---", len(clusters), "clusters for", len(self.protein.aminoacids), "amino acids"
+		#print "---", len(clusters), "clusters for", len(self.protein.aminoacids), "amino acids"
 		for clust in clusters:
 			tupcluster = (clust[0], clust[1])
 			for i in xrange(*tupcluster):
@@ -591,4 +642,250 @@ class AAProbabilitySource(ProbabilitySource):
 		for hypotheticals in cases:
 			probabilities.append([hypotheticals, score_to_probability(sum(d.score(self.protein, hypotheticals) for d in self.distributions))])
 		probabilities = [x for x in probabilities if x[1] > 0.0]
+		return to_cdf(sorted(probabilities, key=lambda x: x[1]))
+
+#MARK: - AAConstructiveProbabilitySource
+
+class AAConstructiveProbabilitySource(AAProbabilitySource):
+	"""This class copies all the functionality from AAProbabilitySource except that it allows you to run simulations with two big clusters of amino acids, mutating the orientations between them."""
+
+	def __init__(self, protein, segment1, segment2, distributions, permissions=None, sec_struct_permissions=None):
+		"""For segment1 and segment2, pass in tuples (min, max). For instance, (0, 5) represents amino acids 0-5 for 5 amino acids total."""
+		super(AAConstructiveProbabilitySource,self).__init__(protein, distributions, permissions, sec_struct_permissions)
+		#These are tuples defining the range of each cluster.
+		self.cluster1 = segment1
+		self.cluster2 = segment2
+		#These are lists of tuples: (list of position zones, SPARC score).
+		self.c1_conformations = []
+		self.c2_conformations = []
+
+	def load_cluster_conformations(self, cluster_num, path):
+		'''This new function loads the conformations for one of the segments of the simulation. If the SPARC scores are stored in the comment lines of the multi-model PDB file you pass in at path, they will be read in with the format "SPARC xxxx". Otherwise, the SPARC scores will be computed within this method.'''
+		confs = []
+		with open(path, 'r') as file:
+			lines = file.readlines()
+			last_read = 0
+			curr_score = 0.0
+			peptide = Polypeptide()
+			for i, l in enumerate(lines):
+				if "SPARC" in l:
+					curr_score = float(l.split()[1])
+				if "ENDMDL" in l:
+					peptide.read_file(lines[last_read : i + 1])
+					if curr_score == 0.0:
+						curr_score = sum(d.score(peptide, peptide.aminoacids) for d in self.distributions)
+					if curr_score / float(len(peptide.aminoacids)) <= 1.0:
+						confs.append(([aa.pz_representation() for aa in peptide.aminoacids], curr_score, score_to_probability(curr_score)))
+						if len(confs) % 50 == 0:
+							print "Loaded", len(confs), "conformations..."
+					curr_score = 0.0
+					last_read = i + 1
+					del peptide.aminoacids[:]
+					peptide.hashtable = None
+		print "Loaded", len(confs), "conformations for segment", cluster_num
+		if cluster_num == 1:
+			self.c1_conformations = confs
+		elif cluster_num == 2:
+			self.c2_conformations = confs
+		else:
+			print "AAConstructiveProbabilitySource doesn't support segment number", cluster_num, ". Sorry!"
+
+	def generate_initial_structure(self, sequence):
+		'''This method creates an initial structure by combining the two segments in a random way. Provide the amino acid sequence of the entire segment pair so that we know what amino acids to add.'''
+		aminoacids = []
+		hashtable = AAHashTable()
+		
+		#First choose a random structure in c1_conformations.
+		weights = [c[2] for c in self.c1_conformations]
+		total = float(sum(weights))
+		weights = [w / total for w in weights]
+		c1_struct = self.c1_conformations[np.random.choice(len(self.c1_conformations), p=weights)][0]
+		assert len(c1_struct) == self.cluster1[1] - self.cluster1[0], "Mismatched lengths: {} position zones for cluster {}".format(len(c1_struct), self.cluster1)
+		for pz in c1_struct:
+			aminoacid = AminoAcid(aatypec(sequence[len(aminoacids)]), tag=len(aminoacids), acarbon=pz.alpha_zone)
+			aminoacid.set_axes(pz.x_axis, pz.y_axis, pz.z_axis)
+			hashtable.add(aminoacid)
+			aminoacids.append(aminoacid)
+
+		#Then get permissible orientations for the last residue in c1 and the first residue in c2
+		pivot = AminoAcid(aatypec(sequence[len(aminoacids)]), tag=len(aminoacids))
+		second_last = None
+		if len(aminoacids) > 1: second_last = aminoacids[-2]
+		candidates = self.permissions.allowed_conformations(pivot, aminoacids[-1], opposite_aa=second_last)
+		assert len(candidates) > 0, "No permissible candidates for pivot"
+		while len(candidates) > 0 and (pivot.acarbon == Point3D.zero() or len(hashtable.nearby_aa(pivot, self.steric_cutoff, consec=False)) > 0):
+			zone = random.choice(candidates)
+			pivot.acarbon = zone.alpha_zone
+			pivot.set_axes(zone.x_axis, zone.y_axis, zone.z_axis)
+			candidates.remove(zone)
+		hashtable.add(pivot)
+		aminoacids.append(pivot)
+
+		def is_steric_violation():
+			for aa in aminoacids:
+				if len(hashtable.nearby_aa(aa, self.steric_cutoff, consec=False)) > 0: return True
+			return False
+
+		#Choose a random structure in c2_conformations that does not cause a steric clash.
+		weights = [c[2] for c in self.c2_conformations]
+		total = float(sum(weights))
+		weights = [w / total for w in weights]
+		c2_struct = self.c2_conformations[np.random.choice(len(self.c2_conformations), p=weights)][0]
+		assert len(c2_struct) == self.cluster2[1] - self.cluster2[0], "Mismatched lengths: {} position zones for cluster {}".format(len(c2_struct), self.cluster2)
+		pivot_hypo = pivot.hypothetical(c2_struct[0])
+		for	pz in c2_struct[1:]:
+			aminoacid = AminoAcid(aatypec(sequence[len(aminoacids)]), tag=len(aminoacids))
+			pivoted_pz = pivot.globalpz(pivot_hypo.localpz(pz))
+			aminoacid.acarbon = pivoted_pz.alpha_zone
+			aminoacid.set_axes(pivoted_pz.x_axis, pivoted_pz.y_axis, pivoted_pz.z_axis)
+			hashtable.add(aminoacid)
+			aminoacids.append(aminoacid)
+
+		test_idx = 1
+		while is_steric_violation():
+			if test_idx == 50:
+				self.generate_initial_structure(sequence)
+				return
+			for i in xrange(self.cluster2[0] + 1, self.cluster2[1]):
+				hashtable.remove(aminoacids[i])
+			del aminoacids[self.cluster2[0] + 1 : self.cluster2[1]]
+			c2_struct = self.c2_conformations[np.random.choice(len(self.c2_conformations), p=weights)][0]
+			pivot_hypo = pivot.hypothetical(c2_struct[0])
+			for	pz in c2_struct[1:]:
+				aminoacid = AminoAcid(aatypec(sequence[len(aminoacids)]), tag=len(aminoacids))
+				pivoted_pz = pivot.globalpz(pivot_hypo.localpz(pz))
+				aminoacid.acarbon = pivoted_pz.alpha_zone
+				aminoacid.set_axes(pivoted_pz.x_axis, pivoted_pz.y_axis, pivoted_pz.z_axis)
+				hashtable.add(aminoacid)
+				aminoacids.append(aminoacid)
+			test_idx += 1
+
+		self.protein.add_aas(aminoacids)
+
+
+	def choose_segment(self, segment_length):
+		'''This subclassed method ignores the parameter segment_length, instead choosing one of the pivot amino acids to return.'''
+		cluster1_aa = self.protein.aminoacids[self.cluster1[0] : self.cluster1[1]]
+		cluster2_aa = self.protein.aminoacids[self.cluster2[0] : self.cluster2[1]]
+		cluster1_score = sum(d.score(self.protein, cluster1_aa) for d in self.distributions)
+		cluster2_score = sum(d.score(self.protein, cluster2_aa) for d in self.distributions)
+		for aa in cluster1_aa:
+			if aa.localscore == 0.0:
+				aa.localscore = sum(d.score(self.protein, [aa]) for d in self.distributions)
+			aa.cluster = self.cluster1
+			aa.clusterscore = cluster1_score
+		for aa in cluster2_aa:
+			if aa.localscore == 0.0:
+				aa.localscore = sum(d.score(self.protein, [aa]) for d in self.distributions)
+			aa.cluster = self.cluster2
+			aa.clusterscore = cluster2_score
+
+		weights = [score_to_probability(-cluster1_score), score_to_probability(-cluster2_score)]
+		s = sum(weights)
+		weights = [w / s for w in weights]
+		random_start = np.random.choice([self.cluster1[1] - 1, self.cluster2[0]], p=weights)
+		selected_cluster = self.protein.aminoacids[random_start].cluster
+		return self.protein.aminoacids[selected_cluster[0] : selected_cluster[1]]
+
+	def probabilities(self, aminoacids, anchors=[], **kwargs):
+		"""This overridden function generates a list of possible conformations and their probabilities weighted by the distribution scores, as does its superclass's implementation. However, this implementation considers variants on the segment structures based on the possible conformations provided earlier.
+			NOTES: Pass in an integer for keyword argument "primanchor" to signify which anchor is used as a pivot point for mutation. Pivoting will not be used unless you specify a value for "primanchor". Also, you should provide a Boolean for keyword argument "prior" to signify whether or not primanchor is before the segment. If not provided, "prior" is assumed True.
+			If you pass the keyword argument 'numconfs', it will be used to determine a number of possible conformations from the previously-generated structures."""
+		probabilities = []
+		current_score = sum(d.score(self.protein, aminoacids) for d in self.distributions)
+		if self.mode == psource_erratic_mode:
+			proximity = self._randomization_margin(current_score / len(aminoacids)) * 4.0
+			step = proximity
+		else:
+			proximity = 0.1
+			step = 0.1
+		assert "primanchor" in kwargs, "Need a primary anchor to calculate probabilities"
+		if "prior" in kwargs: prior = kwargs["prior"]
+		else: prior = True
+		current_score = 0.0
+		for d in self.distributions:
+			if d.type != distributions.frequency_consec_disttype:
+				current_score += d.score(self.protein, aminoacids)
+			else:
+				current_score += d.score(self.protein, aminoacids, prior=prior)
+
+		#Choose some predetermined conformations to try as well
+		if "numconfs" in kwargs: numconfs = kwargs["numconfs"]
+		else:					 numconfs = 25
+		if prior:
+			weights = [c[2] for c in self.c2_conformations]
+			total = float(sum(weights))
+			weights = [w / total for w in weights]
+			seg_confs = [self.c2_conformations[c][0] for c in np.random.choice(len(self.c2_conformations), numconfs, p=weights)]
+		else:
+			weights = [c[2] for c in self.c1_conformations]
+			total = float(sum(weights))
+			weights = [w / total for w in weights]
+			seg_confs = [self.c1_conformations[c][0] for c in np.random.choice(len(self.c1_conformations), numconfs, p=weights)]
+
+		def _iter_confs(seg_conf=None):
+			starters = aminoacids
+			if seg_conf:
+				second_last = None
+				if prior:
+					pivot = starters[0]
+					if starters[0].tag > 0:
+						second_last = self.protein.aminoacids[starters[0].tag - 1]
+				else:
+					pivot = starters[-1]
+					if starters[-1].tag < len(self.protein.aminoacids) - 1:
+						second_last = self.protein.aminoacids[starters[-1].tag + 1]
+				candidates = self.permissions.allowed_conformations(pivot, anchors[kwargs["primanchor"]], prior, opposite_aa=second_last)
+				if not len(candidates):
+					print "No permissible candidates for pivot"
+					return
+				zone = random.choice(candidates)
+				pivot.acarbon = zone.alpha_zone
+				pivot.set_axes(zone.x_axis, zone.y_axis, zone.z_axis)
+				if prior:
+					original_pivot = pivot.hypothetical(seg_conf[0])
+				else:
+					original_pivot = pivot.hypothetical(seg_conf[-1])
+
+				for	i, pz in enumerate(seg_conf):
+					hypo = starters[i].hypothetical(pivot.globalpz(original_pivot.localpz(pz)))
+					starters[i] = hypo
+		
+			maxsamples = -1
+			if seg_confs: maxsamples = 5
+			for conformation in self.iter_ensemble_pivot(starters, anchors[kwargs["primanchor"]], prior, proximity * 2.0, maxsamples=maxsamples):
+				hypotheticals = [starters[i].hypothetical(conformation[i]) for i in xrange(len(starters))]
+				score = 0.0
+				for d in self.distributions:
+					if d.type != distributions.frequency_consec_disttype:
+						score += d.score(self.protein, hypotheticals)
+					else:
+						score += d.score(self.protein, hypotheticals, prior=prior)
+				if self.mode != psource_gentle_mode or score < current_score:
+					probabilities.append([conformation, score_to_probability(score / len(hypotheticals))])
+				del hypotheticals[:]
+
+		_iter_confs()
+		for sc in seg_confs:
+			_iter_confs(sc)
+		if len(probabilities) == 0:
+			for conformation in self.iter_ensemble_pivot(aminoacids, anchors[kwargs["primanchor"]], prior, 1000.0):
+				hypotheticals = [aminoacids[i].hypothetical(conformation[i]) for i in xrange(len(aminoacids))]
+				score = 0.0
+				for d in self.distributions:
+					if d.type != distributions.frequency_consec_disttype:
+						score += d.score(self.protein, hypotheticals)
+					else:
+						score += d.score(self.protein, hypotheticals, prior=prior)
+				if self.mode != psource_gentle_mode or score < current_score:
+					probabilities.append([conformation, score_to_probability(score / len(hypotheticals))])
+				del hypotheticals[:]
+
+		apply_weight(probabilities, partial(self.weights["distance"], aminoacids=aminoacids, proximity=self._randomization_margin(current_score / len(aminoacids)) * 4.0))
+		apply_weight(probabilities, partial(self.weights["comparison"], currentprob=score_to_probability(current_score / len(aminoacids))), passprob=True)
+		apply_weight(probabilities, partial(self.weights["anchor"], anchors=anchors, negweight=proximity))
+
+		probabilities = [x for x in probabilities if x[1] > 0.0]
+		if len(probabilities) == 0 and "primanchor" not in kwargs:
+			probabilities.append([[PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in aminoacids], score_to_probability(current_score / len(aminoacids))])
 		return to_cdf(sorted(probabilities, key=lambda x: x[1]))

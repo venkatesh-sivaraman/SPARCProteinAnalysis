@@ -213,7 +213,8 @@ class Point3D(object):
 					   self.x * math.cos(self.z))
 
 	def in_coordinate_system(self, u, v, w):
-		'Computes the location of a point in a coordinate space defined by vectors u, v, and w.'
+		'''Computes the location of a point in a coordinate space defined by vectors u, v, and w.'''
+		assert math.fabs(dotproduct(u, v)) < 0.001 and math.fabs(dotproduct(v, w)) < 0.001, "Incorrect coordinate system vectors: {}, {}, {}".format(u, v, w)
 		mag = self.magnitude()
 		# A = |P| [ (sqrt(2)/|P|) * P - w ]
 		alpha = u.y * v.z - v.y * u.z

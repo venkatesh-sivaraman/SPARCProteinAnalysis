@@ -3,13 +3,6 @@ from polypeptide import *
 from probsource import *
 import random
 
-def sample_cdf(probabilities):
-	"""This helper function takes a list of probabilities in tuple form (conformation, probability number), representing a cumulative distribution function (cdf). It chooses a random one and returns its conformation."""
-	rand = random.uniform(0.0, probabilities[-1][1])
-	selected_conformation = next((x for x in probabilities if x[1] >= rand), None)
-	assert selected_conformation is not None, "No valid conformation found with probability number greater than %.3f" % rand
-	return selected_conformation[0]
-
 def mutate_aa_orientation(protein, psource, residue):
 	#Find angle probabilities.
 	probabilities = psource.angleprobabilities(residue)
@@ -121,8 +114,9 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		Returns: if no probabilities are found for the wave, returns None. If the conformation has been saved, returns a tuple (min, max) where min is the lowest tag mutated and max is the lowest tag not mutated (e.g., if amino acids 1-3 were mutated, min=1 and max=4."""
 	begin_offset = end_offset = Point3D.zero()
 	
-	for i, residue in enumerate(segment):
+	for i in xrange(len(segment)):
 		#if restore == True: residue.save()
+		residue = protein.aminoacids[i + segment[0].tag]
 		old = residue.acarbon
 		residue.acarbon = selected_conformation[i].alpha_zone
 		if i == 0:
@@ -158,9 +152,9 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		probabilities = []
 		if len(anchors) >= 2 and len(presegment) == 1:
 			if psource.connectivity_possible(anchors[0], anchors[1], 1):
-				probabilities = psource.randomcoil_probabilities(presegment, anchors[0], anchors[1])
+				probabilities = psource.randomcoil_probabilities(presegment, anchors[1], anchors[0])
 		if len(probabilities) == 0:
-			probabilities = psource.probabilities(presegment, anchors=anchors, primanchor=0, prior=False)
+			probabilities = psource.probabilities(presegment, anchors=anchors, primanchor=0, prior=False, connected=(wave == 1))
 		if len(probabilities) == 0:
 			if restore == True:
 				for aa in presegment:
@@ -186,7 +180,7 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 			mutation_list[0] = application_ret[0]
 		assert psource.permissions.is_valid(presegment[-1], anchors[0], prior=False), "Invalid orientation for presegment: {} and {} ({})".format(presegment, anchors, anchors[0].tolocal(presegment[0].acarbon))
 		#print protein.xyz(escaped=False, highlight=range(presegment[0].tag, presegment[-1].tag + 1))
-
+	
 	if segment[-1].tag < len(protein.aminoacids) - 1 and not psource.is_connected(segment) and wave != 1:
 		cluster = protein.aminoacids[segment[-1].tag + 1].cluster
 		if cluster[1] - cluster[0] <= segment_length or random.uniform(-160.0, 0.0) <= protein.aminoacids[segment[-1].tag + 1].clusterscore:
@@ -208,7 +202,7 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 			if psource.connectivity_possible(anchors[0], anchors[1], 1):
 				probabilities = psource.randomcoil_probabilities(postsegment, anchors[0], anchors[1])
 		if len(probabilities) == 0:
-			probabilities = psource.probabilities(postsegment, anchors=anchors, primanchor=0, prior=True)
+			probabilities = psource.probabilities(postsegment, anchors=anchors, primanchor=0, prior=True, connected=(wave == 2))
 		if len(probabilities) == 0:
 			if restore == True:
 				for aa in postsegment:
@@ -234,7 +228,9 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 			mutation_list[1] = application_ret[1]
 		assert psource.permissions.is_valid(postsegment[0], anchors[0]), "Invalid orientation for postsegment: {} and {} ({})".format(postsegment, anchors, anchors[0].tolocal(postsegment[0].acarbon))
 	
-	assert psource.is_connected(protein.aminoacids[mutation_list[0] : mutation_list[-1]]), "Segment {} not connected with seg len {}".format(protein.aminoacids[mutation_list[0] : mutation_list[-1]], segment_length)
+	if not psource.is_connected(protein.aminoacids[mutation_list[0] : mutation_list[-1]]):
+		return None
+
 	if file is not None:
 		highlight = []
 		for clust in psource.clusters:
@@ -252,12 +248,14 @@ def apply_conformation(protein, psource, segment_length, segment, selected_confo
 	application_ret = _apply_conformation_recursive(protein, psource, segment_length, segment, selected_conformation, restore, wave=3, file=file)
 	if application_ret is None:
 		if restore == True:
+			print "Restoring"
 			for aa in segment:
 				aa.restore()
 		return None
 	else:
 		if restore == True:
 			hypotheticals = []
+			print "Doing something with hypotheticals"
 			for aa in protein.aminoacids[application_ret[0] : application_ret[1]]:
 				hypotheticals.append(aa.hypothetical(aa.restore(), True))
 			return hypotheticals
@@ -306,6 +304,66 @@ def folding_iteration(protein, psource, segment_length=1, file=None):
 			for aa in protein.aminoacids:
 				aa.restore()
 			return
+
+	violated = False
+	for aa in protein.aminoacids:
+		if len(protein.nearby_aa(aa, psource.steric_cutoff, consec=False, mindiff=psource.steric_consec_diff)) > 0:
+			violated = True
+			break
+	if violated is True:
+		print "Steric violation."
+		for aa in protein.aminoacids:
+			aa.restore()
+	else:
+		aa.discard_save()
+
+def constructive_folding_iteration(protein, psource, file=None):
+	"""The backbone of the protein folding simulator, but for segmented, constructive simulations. The gist of the algorithm is to choose a random subset of the amino acids in 'protein' (which is a Polypeptide) and move them randomly. The function returns no value, just updates the protein.
+		
+		folding_iteration uses the ProbabilitySource object's probabilities() method to determine where to move the segment. psource should accept a list of relevant amino acids (the residues for which probabilities are required) and return a list of lists (form: [[conformation, probability], ...]) representing a cumulative distribution function and sorted by probability. (The conformation should be specified as a list of position zones, one for each amino acid.)
+		
+		Note that the final transformation is random and not guaranteed to match one of the probabilities exactly (no lattice is involved). Psource provides a randomization_margin function that uses score to determine how much randomization to introduce.
+		
+		Specify an open file object to write intermediate output to it."""
+	
+	#Save a copy of the chain just in case there's a steric violation.
+	for aa in protein.aminoacids:
+		aa.save()
+	
+	#Choose a random segment out of the protein.
+	segment = psource.choose_segment(0)
+	#print psource.is_connected(segment)
+
+	#Get the probability list for the segment. It should be sorted by probability.
+	#For the anchor, use the amino acid immediately before or after the segment.
+	prior = True
+	if segment[0].tag == 0:
+		anchor = AAAnchor.make(protein.aminoacids[segment[-1].tag + 1], weight=4, hook=-1)
+		prior = False
+	elif segment[-1].tag == len(protein.aminoacids) - 1:
+		anchor = AAAnchor.make(protein.aminoacids[segment[0].tag - 1], weight=4, hook=0)
+	else:
+		print "folding doesn't understand this segment:", segment
+	probabilities = psource.probabilities(segment, anchors=[anchor], primanchor=0, prior=prior)
+
+	if segment[0].tag == 0:
+		print len(probabilities), "probabilities for the first segment"
+	#Sample the cumulative distribution function once and execute the change.
+	selected_conformation = None
+	application_ret = None
+	while application_ret is None and len(probabilities) > 0:
+		selected_conformation = sample_cdf(probabilities)
+		application_ret = apply_conformation(protein, psource, 1, segment, selected_conformation, file=file)
+		if application_ret is None:
+			entry = next(i for i in probabilities if i[0] == selected_conformation)
+			probabilities.remove(entry)
+	#assert application_ret is not None, "No valid permissible conformation found from this location."
+	reset_stats()
+	if application_ret is None:
+		for aa in protein.aminoacids:
+			aa.restore()
+		return
+	print "Modified"
 
 	violated = False
 	for aa in protein.aminoacids:

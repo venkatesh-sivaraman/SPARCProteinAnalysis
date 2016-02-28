@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.base12innovations.protein-folding-simulation</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>python</string>
+		<string>/Users/venkatesh-sivaraman/Documents/Xcode Projects/PythonProteins/background_process.py</string>
+	</array>
+	<key>KeepAlive</key>
+	<true/>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>

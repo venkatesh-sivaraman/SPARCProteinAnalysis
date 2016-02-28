@@ -1417,14 +1417,20 @@ def sparc_scores_file(input, dists, bounds=None, retbounds=False, ignored_aas=No
 	if not noeval:
 		print os.path.basename(input)
 	#if "T" not in input: return ret
-	if os.path.basename(input)[0] == ".": return ret
+	if os.path.basename(input)[0] == ".":
+		if retbounds == True:
+			return (None, ret)
+		else:
+			return ret
 	peptide = Polypeptide()
 	gaps, rbounds = peptide.read(input, checkgaps=True, fillgaps=True)
 	if bounds is not None:
 		bounds = (bounds[0] - rbounds[0], bounds[1] - rbounds[0])
-		print bounds
 		if bounds[0] < 0 or bounds[-1] >= len(peptide.aminoacids):
-			return ret
+			if retbounds == True:
+				return (rbounds, ret)
+			else:
+				return ret
 		pre = peptide.aminoacids[:bounds[0]]
 		post = peptide.aminoacids[bounds[1] + 1:]
 		for aa in pre:
@@ -1475,6 +1481,22 @@ def _weight_data(input, weights):
 				best_nm = nm
 	return best_nm
 
+def _all_weight_data(input, weights):
+	scores = {}
+	with open(input, 'r') as file:
+		for line in file:
+			if ";" not in line: continue
+			line = line.strip()
+			nm = line[:line.find(";")]
+			if ".pdb" in nm: nm = nm[:nm.find(".pdb")]
+			comps = line[line.find(";") + 1:].split(",")
+			score = 0.0
+			for i, w in enumerate(weights):
+				score += float(comps[i]) * w
+			scores[nm] = score
+	return scores
+
+
 def best_weights(input, numweights=4):
 	"""This function determines which set of integer weights maximizes the number of correct guesses for the native structure. Correctness is determined by the filename being equivalent to the structure chosen."""
 	weights = []
@@ -1484,13 +1506,12 @@ def best_weights(input, numweights=4):
 		else:
 			for w in genweights(levels - 1, min, max):
 				for i in xrange(min, max): yield w + [i]
-	for weightlist in genweights(numweights, 1, 4):
-		weightlist.insert(1, 0)
+	for weightlist in genweights(numweights, 1, 6):
 		weights.append(weightlist)
 	maxcorrect = 0
 	maxweights = []
 	max_z = -100000
-	for w in weights:
+	for w in weights[390:]:
 		correct = 0
 		for path in os.listdir(input):
 			if os.path.isdir(os.path.join(input, path)):
@@ -1499,13 +1520,13 @@ def best_weights(input, numweights=4):
 					native_guess = _weight_data(os.path.join(input, path, subpath), w)
 					if native_guess == subpath[:subpath.find(".txt")]:
 						correct += 1
-					print subpath[:subpath.find(".txt")], native_guess
+					#print subpath[:subpath.find(".txt")], native_guess
 				continue
 			if ".txt" not in path: continue
 			native_guess = _weight_data(os.path.join(input, path), w)
 			if native_guess == path[:path.find(".txt")] or native_guess == path[:path.find(".txt")] + "_orig":
 				correct += 1
-			print path[:path.find(".txt")], native_guess
+			#print path[:path.find(".txt")], native_guess
 		print w, "had", correct, "correct."
 		if correct > maxcorrect:
 			maxcorrect = correct
@@ -1513,11 +1534,80 @@ def best_weights(input, numweights=4):
 			max_z = z_score(input, w)[2]
 		elif correct == maxcorrect:
 			z = z_score(input, w)[2]
-			if z > max_z:
+			if z < max_z:
 				max_z = z
 				maxcorrect = correct
 				maxweights = [w]
 	print "Final: the combos", maxweights, "had a total of", maxcorrect, "correct guesses, with z score", max_z
+
+def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4):
+	"""This method performs exactly the same function as best_weights, but instead of using the Z-score as the rank, it uses the correlation coefficient between the RMSDs of the decoys and the SPARC scores."""
+	weights = []
+	def genweights(levels, min, max):
+		if levels == 1:
+			for i in xrange(min, max): yield [i]
+		else:
+			for w in genweights(levels - 1, min, max):
+				for i in xrange(min, max): yield w + [i]
+	for weightlist in genweights(numweights, 1, 6):
+		weights.append(weightlist)
+	maxcorrect = 0
+	maxweights = []
+	max_rsq = 0.0
+	#First compute the RMSD distances for all the decoys
+	all_rmsds = {}
+	for rmsd_file in os.listdir(rmsd_files):
+		if ".txt" not in rmsd_file: continue
+		print rmsd_file
+		sub_rmsd = {}
+		with open(os.path.join(rmsd_files, rmsd_file), "r") as file:
+			for line in file:
+				if "," not in line or "None" in line: continue
+				comps = line.split(",")
+				fname = comps[0]
+				if ".pdb" in fname: fname = fname[:fname.find(".pdb")]
+				sub_rmsd[fname] = float(comps[1])
+		all_rmsds[rmsd_file] = sub_rmsd
+
+	print "Stored", len(all_rmsds), "sets of RMSD data"
+
+	for w in weights:
+		correct = 0
+		total_r2 = 0.0
+		num_r2 = 0
+		sparc_scores = []
+		rmsd_scores = []
+		for path in os.listdir(input):
+			if ".txt" not in path: continue
+			if path not in all_rmsds:
+				continue
+			scores = _all_weight_data(os.path.join(input, path), w)
+			native_guess = min(scores, key=scores.get)
+			if native_guess == path[:path.find(".txt")] or native_guess == path[:path.find(".txt")] + "_orig":
+				correct += 1
+			#print path[:path.find(".txt")], native_guess
+			rmsd_list = all_rmsds[path]
+			for filename, score in scores.iteritems():
+				if filename == path[:path.find(".txt")]: continue
+				if filename not in rmsd_list:
+					continue
+				sparc_scores.append(score)
+				rmsd_scores.append(rmsd_list[filename])
+			m, b, r2, p, se = linregress(sparc_scores, rmsd_scores)
+			#if w == [4, 1, 4, 5]:
+			#	print sum(rmsd_scores) / float(len(rmsd_scores)), r2 ** 2
+			total_r2 += r2 ** 2
+			num_r2 += 1
+			del sparc_scores[:], rmsd_scores[:]
+		total_r2 /= float(num_r2)
+		print w, "had", correct, "correct, average R^2 =", total_r2
+		if total_r2 > max_rsq:
+			maxweights = w
+			maxcorrect = correct
+			max_rsq = total_r2
+
+	print "Final: the combos", maxweights, "had a total of", maxcorrect, "correct guesses, with R^2", max_rsq
+
 
 def z_score(input, weights, structure_files=None):
 	"""Prints the z-score of each file in input by computing the score for each line and averaging, subtracting the native score, and dividing by the standard deviation. If structure_files is not None, then this will divide the energies by the number of amino acids in EACH structure before comparing."""
@@ -1611,14 +1701,13 @@ def calc_rmsd(file1, file2, tmpdir):
 	os.chdir(tmpdir)
 	
 	out = None
-	if True: #try:
+	try:
 		with open(os.devnull, "w") as fnull:
-			#cmd = "rm \\#*\\#; echo \"3\n3\n\" | gmx confrms -f1 \"" + file1 + "\" -f2 \"" + file2 + "\" -name"
 			cmd = "rm \\#*\\#; echo \"3\n3\n\" | gmx confrms -name -f1 \"" + file1 + "\" -f2 \"" + file2 + "\""
-			out = subprocess.check_output(cmd, shell=True)
-	'''except:
-		print "Exception"
-		return 100000'''
+			out = subprocess.check_output(cmd, shell=True, stderr=fnull)
+	except:
+		print "Exception", os.path.basename(file1), os.path.basename(file2)
+		return 100000
 
 	os.chdir(origWD) # get back to our original working directory
 	if out:
@@ -1627,25 +1716,30 @@ def calc_rmsd(file1, file2, tmpdir):
 		return rms
 	return 100000
 
-def decoys_rmsd(input, native_paths, output):
-	"""For every structure in the CASP datasets, calculates the rms distance using GROMACS and puts it in a file in the directory at output."""
-	if not os.path.exists(output): os.mkdir(output)
+def decoys_rmsd(input, native_paths, output, writefile=True):
+	"""For every structure in the CASP datasets, calculates the rms distance using GROMACS and puts it in a file in the directory at output (assuming writefile is the default value of False). Also returns a dictionary of filename-RMSD entries."""
+	if writefile:
+		if not os.path.exists(output): os.mkdir(output)
 	
-	tmpdir = os.path.join(output, "sp_tmp")
+	tmpdir = os.path.join(input, "sp_tmp")
 	if os.path.exists(tmpdir):
 		shutil.rmtree(tmpdir)
 	os.mkdir(tmpdir)
+	rmsds = {}
 	for path in reversed(os.listdir(input)):
-		if not os.path.isdir(os.path.join(input, path)): continue
+		if not os.path.isdir(os.path.join(input, path)) or path == "sp_tmp": continue
+		if output:
+			if os.path.exists(os.path.join(output, path)) or os.path.exists(os.path.join(output, path + ".txt")): continue
 		if native_paths is not None:
 			nativepath = os.path.join(native_paths, path + ".pdb")
 		else:
 			nativepath = os.path.join(input, path, path + ".pdb")
 			assert os.path.exists(nativepath), "No native path for %r!" % path
 		print path
+		sub_rmsds = {}
 		for subpath in os.listdir(os.path.join(input, path)):
 			if "T" not in subpath and ".pdb" not in subpath: continue
-			print subpath
+			#print subpath
 			if ".pdb" not in subpath:
 				file2 = os.path.join(tmpdir, subpath + ".pdb")
 				shutil.copyfile(os.path.join(input, path, subpath), file2)
@@ -1653,10 +1747,14 @@ def decoys_rmsd(input, native_paths, output):
 				file2 = os.path.join(input, path, subpath)
 			if file2 == nativepath: continue
 			rmsd = calc_rmsd(nativepath, file2, tmpdir)
-			if rmsd > 10000: break
-			with open(os.path.join(output, path), "a") as file:
-				file.write(subpath + "," + str(rmsd) + "\n")
-	shutil.rmtree(tmpdir)
+			if rmsd > 10000: continue
+			sub_rmsds[subpath] = rmsd
+			if writefile:
+				with open(os.path.join(output, path + ".txt"), "a") as file:
+					file.write(subpath + "," + str(rmsd) + "\n")
+		rmsds[path] = sub_rmsds
+	#shutil.rmtree(tmpdir)
+	return rmsds
 
 def link_decoy_rmsd(energy_files, rmsd_files, weights):
 	"""energy_files should be a directory of energy files (not nested). rmsd_files should be a directory of rmsd files (not nested)."""
@@ -1708,6 +1806,7 @@ def min_rmsd(input, original_structure):
 					min_model = modelno
 	print "min:", min_model, min_rmsd
 	shutil.rmtree(tmpdir)
+	return min_rmsd
 
 def sum_squared_difference(input):
 	points = []
@@ -1727,6 +1826,26 @@ def sum_squared_difference(input):
 	for i, p in enumerate(points):
 		ssd += (p - m * i - b) ** 2
 	return (initial, ssd)
+
+def score_structure_file(input, dists):
+	"""Prints the SPARC scores of all structures in the input file."""
+	peptide = None
+	with open(input, "r") as file:
+		next_pdb = []
+		modelno = 0
+		for line in file:
+			next_pdb.append(line)
+			if "MODEL" in line:
+				modelno = int(line[5:].strip())
+			elif "ENDMDL" in line:
+				peptide = Polypeptide()
+				peptide.read_file(next_pdb)
+				print sum(d.score(peptide, peptide.aminoacids) for d in dists)
+				del peptide.aminoacids[:]
+				peptide.hashtable = None
+				peptide = None
+				next_pdb = []
+	print "\n"
 
 #MARK: Miscellaneous
 
@@ -1971,6 +2090,71 @@ def aggregate_secondary_structures(input):
 						str(pz.z_axis.x) + ", " + str(pz.z_axis.y) + ", " + str(pz.z_axis.z) + "; " +
 						str(freq) + "\n")
 
+def aggregate_permissible_sequences(input, cutoff=0.05):
+	"""Aggregates the contents of each permissible sequence folder into the input directory. Recommended to run first with a cutoff of 0 to see how many zones you get, then choose a cutoff accordingly."""
+	data = {}
+	for folder in os.listdir(input):
+		if not os.path.isdir(os.path.join(input, folder)): continue
+		print folder
+		filenames = os.listdir(os.path.join(input, folder))
+		for struct_file in filenames:
+			if ".txt" not in struct_file: continue
+			struct_type = struct_file[:-4]
+			with open(os.path.join(input, folder, struct_file), "r") as file:
+				current_zones = None
+				for line in file:
+					if len(line.strip()) == 0:
+						current_zones = None
+						continue
+					comps = line.split(";")
+					if not current_zones:
+						comps1 = comps[0].split(",")
+						comps2 = comps[1].split(",")
+						current_zones = (Point3D(*(float(c) for c in comps1)), Point3D(*(float(c) for c in comps2)))
+					else:
+						alpha_zone = Point3D(*(float(c) for c in comps[0].split(",")))
+						if alpha_zone.magnitude() > 11.0: continue
+						freq = int(comps[-1])
+						if struct_type not in data:
+							data[struct_type] = {}
+						if current_zones not in data[struct_type]:
+							data[struct_type][current_zones] = {}
+						if alpha_zone in data[struct_type][current_zones]:
+							data[struct_type][current_zones][alpha_zone] += freq
+						else:
+							data[struct_type][current_zones][alpha_zone] = freq
+	def write_aggregate_freq_data(data_dict, filename):
+		min_freq = 0
+		if cutoff > 0 and cutoff < 1:
+			all_frequencies = [c for coll in data_dict.values() for c in coll.values()]
+			all_frequencies = sorted(all_frequencies, key=lambda x: -x)
+			min_freq = all_frequencies[int(len(all_frequencies) * cutoff)]
+		with open(os.path.join(input, filename), "w") as f:
+			for zone1, zone2 in data_dict:
+				if min_freq > 0:
+					points_to_write = []
+					for pz, freq in data_dict[(zone1, zone2)].iteritems():
+						if freq > min_freq and next((x for x in data_dict if x[0] == pz or x[1] == pz), None) is not None:
+							points_to_write.append((pz, freq))
+				else:
+					points_to_write = data_dict[(zone1, zone2)].items()
+				if len(points_to_write) == 0: continue
+				sorted_points = sorted(points_to_write, key=lambda x: -x[1])
+				running_freq = 0
+				f.write(str(zone1.x) + ", " + str(zone1.y) + ", " + str(zone1.z) + "; " +
+						str(zone2.x) + ", " + str(zone2.y) + ", " + str(zone2.z) + "\n")
+				for pz, freq in sorted_points:
+					f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
+					running_freq += freq
+					if cutoff > 1 and running_freq > cutoff: break
+				f.write("\n")
+				del points_to_write, sorted_points
+	if len(data) == 1:
+		write_aggregate_freq_data(data.values()[0], "permissible_sequences.txt")
+	else:
+		for struct_type in data:
+			write_aggregate_freq_data(data[struct_type], struct_type + ".txt")
+
 def trim_secondary_structure_pzs(input, fraction=0.9):
 	"""Overwrites the secondary structure files by keeping the position zones that contain the top 'fraction' of occurrences (default, top 90%)."""
 	for path in os.listdir(input):
@@ -1996,7 +2180,54 @@ def trim_secondary_structure_pzs(input, fraction=0.9):
 					str(freq) + "\n")
 				cumulative_freq += freq
 
+def sequence_score_distribution(input, output, weights=[], grain=20.0):
+	"""Reads a file of the format
+		PDBID,sequence length,scores
+		.
+		.
+		.
+		and prints a distribution of the net scores with resolution `grain`, weighted by the weights you provide, separated by sequence length. The output is a file for each segment length listing all the various scores."""
+	sparc_scores = {
+		3: {},
+		4: {},
+		5: {},
+		6: {},
+		7: {},
+		8: {},
+		9: {},
+		10: {}
+	}
+	with open(input, "r") as file:
+		for line in file:
+			comps = line.strip().split(",")
+			seqlen = int(comps[1])
+			tot_score = 0.0
+			invalid = False
+			for i in xrange(2, len(comps)):
+				weight = 1.0
+				if i - 2 < len(weights):
+					weight = weights[i - 2]
+				subscore = float(comps[i])
+				if subscore == 0.0:
+					invalid = True
+					break
+				tot_score += subscore * weight
+			if seqlen not in sparc_scores or invalid: continue
+			with open(os.path.join(output, str(seqlen) + ".txt"), "a") as outfile:
+				outfile.write(str(tot_score) + "\n")
+			tot_score = math.floor(tot_score / grain) * grain
+			if tot_score in sparc_scores[seqlen]:	sparc_scores[seqlen][tot_score] += 1
+			else:									sparc_scores[seqlen][tot_score] = 1
 
+	print "Total counts:"
+	for i in xrange(3, 11):
+		print len(sparc_scores[i])
+	for i in xrange(3, 11):
+		print "\n", i
+		s = sorted(sparc_scores[i].items(), key=lambda x: x[0])
+		for score, freq in s:
+			if freq > 1:
+				print score, freq
 
 #MARK: CHARMM Comparison
 

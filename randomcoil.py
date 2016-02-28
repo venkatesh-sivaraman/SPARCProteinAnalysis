@@ -25,6 +25,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 	'''This function generates a self-avoiding random walk in 3D space. If you pass a secondary_structures array and a AASecondaryStructurePermissionsManager object, the helices and sheets will be created using random relative orientations dictated by the permissions.'''
 	current_pt = Point3D(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0))
 	last_aa = None
+	second_last_aa = None
 	allaa = []
 	hashtable = AAHashTable()
 	bondangle = math.acos(-1.0 / 3.0)
@@ -53,7 +54,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 					if permissions == None:
 						current_pt = last_aa.toglobal(Point3D(random.uniform(3.0, 3.5), random.uniform(bondangle - 0.2, bondangle + 0.2), random.uniform(bondangle - 0.2, bondangle + 0.2)).tocartesian())
 					else:
-						candidates = permissions.allowed_conformations(aminoacid, last_aa)
+						candidates = permissions.allowed_conformations(aminoacid, last_aa, opposite_aa=second_last_aa)
 						if not len(candidates):
 							print "No permissible candidates"
 							continue
@@ -68,6 +69,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 		aminoacid.set_axes(*axes, normalized=False)
 		allaa.append(aminoacid)
 		hashtable.add(aminoacid)
+		second_last_aa = last_aa
 		last_aa = aminoacid
 	for i, aminoacid in enumerate(allaa):
 		if len(hashtable.nearby_aa(aminoacid, steric_cutoff, consec=False)) > 0 or allaa[i - 1].acarbon.distanceto(aminoacid.acarbon) <= steric_cutoff:

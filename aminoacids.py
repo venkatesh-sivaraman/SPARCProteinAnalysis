@@ -518,19 +518,22 @@ class AminoAcid(object):
 		axes = alpha_zone.coordinate_system_for_transform(a)
 		return axes
 
+	def pz_representation(self):
+		return PositionZone(self.acarbon, self.i, self.j, self.k)
+
 	#MARK: Save/Restore
 	def save(self):
 		"""This function saves the current location and orientation of the amino acid to the stack."""
 		if not hasattr(self, "_savestack"):
 			self._savestack = []
-		self._savestack.append(PositionZone(self.acarbon, self.i, self.j, self.k))
+		self._savestack.append(self.pz_representation())
 
 	def restore(self):
 		"""This function restores the last-saved location and orientation. Returns the location and orientation BEFORE the restoration."""
 		if not hasattr(self, "_savestack"): return
 		assert len(self._savestack) > 0, "Nothing to restore"
 		loc = self._savestack.pop()
-		curr = PositionZone(self.acarbon, self.i, self.j, self.k)
+		curr = self.pz_representation()
 		self.acarbon = loc.alpha_zone
 		self.set_axes(loc.x_axis, loc.y_axis, loc.z_axis)
 		return curr
