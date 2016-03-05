@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		960209871A44C698003A6A99 /* _fastint.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = _fastint.c; sourceTree = "<group>"; };
-		960209881A44C81A003A6A99 /* setup.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = setup.py; sourceTree = "<group>"; };
 		960874411A62E96B00E1AD9A /* background_process.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = background_process.py; sourceTree = "<group>"; };
 		960A23C31A912FF200739447 /* tmscore.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = tmscore.py; sourceTree = "<group>"; };
 		960A23C41A91300E00739447 /* TMscore.jar */ = {isa = PBXFileReference; lastKnownFileType = archive.jar; path = TMscore.jar; sourceTree = "<group>"; };
@@ -26,16 +24,18 @@
 		9652F9291A3E261C00A37E22 /* folding.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = folding.py; sourceTree = "<group>"; };
 		9652F92C1A3E324600A37E22 /* generic_distributions.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = generic_distributions.py; sourceTree = "<group>"; };
 		965383541BE1BD0B0064894B /* charmm.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = charmm.py; sourceTree = "<group>"; };
-		9655187D1A2B950100775578 /* proteinmath.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = proteinmath.py; sourceTree = "<group>"; usesTabs = 1; };
-		9655187E1A2B97A200775578 /* aminoacids.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = aminoacids.py; sourceTree = "<group>"; };
+		9655187D1A2B950100775578 /* proteinmath.pyx */ = {isa = PBXFileReference; explicitFileType = text.script.python; fileEncoding = 4; path = proteinmath.pyx; sourceTree = "<group>"; usesTabs = 1; };
+		9655187E1A2B97A200775578 /* aminoacids.py */ = {isa = PBXFileReference; explicitFileType = text.script.python; fileEncoding = 4; path = aminoacids.py; sourceTree = "<group>"; };
 		9655187F1A2B9C3E00775578 /* polypeptide.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = polypeptide.py; sourceTree = "<group>"; };
 		965518801A2BE68500775578 /* pdbstats.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = pdbstats.py; sourceTree = "<group>"; };
 		96668AE91C756451009530A2 /* maxwell_scores.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = maxwell_scores.py; sourceTree = "<group>"; };
 		967CDE1B1A1A556500E7C822 /* folding_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = folding_1.py; sourceTree = "<group>"; };
+		969A68391C83BA090012D6FF /* setup.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = setup.py; sourceTree = "<group>"; };
 		96A448A319C3A80200C4991A /* main.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = main.py; sourceTree = "<group>"; };
 		96A448A419C3AA8600C4991A /* proteinmath_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = proteinmath_1.py; sourceTree = "<group>"; };
 		96A448A519C3EADF00C4991A /* aminoacids_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = aminoacids_1.py; sourceTree = "<group>"; };
 		96AA06371A9D79DF00340A38 /* decoy_helpers.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = decoy_helpers.py; sourceTree = "<group>"; };
+		96B6AF041C8A4A100004B68F /* loading_indicator.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = loading_indicator.py; sourceTree = "<group>"; };
 		96D2926C1C5B0B5F002E842F /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		96D2926D1C5B124C002E842F /* secondary_structure.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = secondary_structure.py; sourceTree = "<group>"; };
 		96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = sparc_distribution.py; sourceTree = "<group>"; };
@@ -44,15 +44,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
-		960209891A44C8A1003A6A99 /* Fast Int Conversion */ = {
-			isa = PBXGroup;
-			children = (
-				960209871A44C698003A6A99 /* _fastint.c */,
-				960209881A44C81A003A6A99 /* setup.py */,
-			);
-			name = "Fast Int Conversion";
-			sourceTree = "<group>";
-		};
 		963ED0211A55AB87005F0079 /* Simulators */ = {
 			isa = PBXGroup;
 			children = (
@@ -69,6 +60,7 @@
 				9652F91A1A3CC30500A37E22 /* distributions.py */,
 				9652F92C1A3E324600A37E22 /* generic_distributions.py */,
 				96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */,
+				96B6AF041C8A4A100004B68F /* loading_indicator.py */,
 				96E3E17C1C6D8B2B00A22AF3 /* reference_state.py */,
 				961253651A7EC28400231E37 /* permissions.py */,
 			);
@@ -128,12 +120,12 @@
 				96FD853E1C797FCF0023C712 /* simulation_daemon.plist */,
 				960874411A62E96B00E1AD9A /* background_process.py */,
 				96AA06371A9D79DF00340A38 /* decoy_helpers.py */,
-				9655187D1A2B950100775578 /* proteinmath.py */,
+				9655187D1A2B950100775578 /* proteinmath.pyx */,
+				969A68391C83BA090012D6FF /* setup.py */,
 				96D2926C1C5B0B5F002E842F /* .gitignore */,
 				963ED0231A55ABA4005F0079 /* Model Objects */,
 				963ED0221A55AB97005F0079 /* Distributions */,
 				963ED0211A55AB87005F0079 /* Simulators */,
-				960209891A44C8A1003A6A99 /* Fast Int Conversion */,
 				963ED0241A55ABB2005F0079 /* Data Analysis */,
 				9655187C1A2B94D600775578 /* Outdated */,
 			);

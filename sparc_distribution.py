@@ -1,6 +1,33 @@
 from distributions import *
 from secondary_structure import *
 import reference_state
+from loading_indicator import *
+
+#MARK: - Distributions
+
+sec_structs = [	secondary_struct_helix + "1", secondary_struct_helix + "2",
+			   secondary_struct_helix + "3", secondary_struct_helix + "4",
+			   secondary_struct_helix + "5", secondary_struct_helix + "6",
+			   secondary_struct_helix + "7", secondary_struct_helix + "8",
+			   secondary_struct_helix + "9", secondary_struct_helix + "10",
+			   secondary_struct_sheet + "0", secondary_struct_sheet + "1",
+			   secondary_struct_sheet + "-1"]
+
+def _secondary_structures_dict(inner_value={}):
+	global sec_structs
+	sec_dict = {}
+	for ss in sec_structs:
+		sec_dict[ss] = inner_value
+	return sec_dict
+
+def _is_valid_secondary_structure(struct_type):
+	global sec_structs
+	if not struct_type:
+		return False
+	if isinstance(struct_type, basestring):
+		return struct_type in sec_structs
+	if len(struct_type) > 1:
+		return (struct_type[0].type + str(struct_type[1].identifiers[0])) in sec_structs
 
 class SPARCBasicDistributionManager (FrequencyDistributionManager):
 	"""The basic distribution handles just frequencies. It represents a noncommutative potential function for EITHER nonconsecutive or consecutive data."""
@@ -14,20 +41,19 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		self.blocks_secondary_structures = blocks_sec_struct
 		self.short_range = short_range
 		self.total_median = 0
-		print "Loading {}...".format(self)
-		a = datetime.datetime.now()
+		self.identifier = os.path.basename(frequencies_path)
 		self.load_frequencies(frequencies_path)
-		b = datetime.datetime.now()
 		if references:
 			self.load_references(references)
-		print "Loaded {0} in {1:.4f} sec.".format(self, (b - a).total_seconds())
 		self.weight = 1.0
 		if isconsec:
 			self.type = frequency_consec_disttype
 		else:
 			self.type = frequency_nonconsec_disttype
-		self.identifier = os.path.basename(frequencies_path)
 		self.defaultvalue = 0
+
+	def __repr__(self):
+		return "<Distribution Manager for '{}' data>".format(self.identifier)
 	
 	def alpha_frequency(self, type1, type2, zone):
 		"""This helper function retrieves the frequency of 'zone' in the loaded frequency data. type1 refers to the type (code) of the amino acid that serves as the origin of the zone space, while type2 is the amino acid to which the zone refers."""
@@ -54,7 +80,7 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		for aa in data:
 			if not aa: continue
 			sec_struct = protein.secondary_structure_aa(aa.tag)
-			if self.blocks_secondary_structures and sec_struct: continue
+			if self.blocks_secondary_structures and _is_valid_secondary_structure(sec_struct): continue
 			if prior != 2:
 				nearby = []
 				if aa.tag > 0 and prior != False: nearby.append(protein.aminoacids[aa.tag - 1])
@@ -122,11 +148,10 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		files = os.listdir(path)
 		percentage = 0
 		self.total_interactions = [[0 for i in xrange(AMINO_ACID_COUNT)] for j in xrange(AMINO_ACID_COUNT)]
+		loading_indicator.add_loading_data(len(files))
 		for n, indfile in enumerate(files):
+			loading_indicator.update_progress(1)
 			if indfile.find(".txt") == -1: continue
-			if math.floor(float(n) / len(files) * 10) > percentage:
-				percentage = math.floor(float(n) / len(files) * 10)
-				print percentage * 10, "percent complete"
 			all = ("all" in indfile)
 			if not all:	tag1, tag2 = indfile[0:-4].split('-')
 			tag1 = int(tag1)
@@ -148,17 +173,15 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		#Compute median total frequency
 		s = sorted([x for list1 in self.total_interactions for x in list1])
 		self.total_median = s[int(len(s) / 2.0)] #sum(s) / float(len(s))
-		print "Loaded frequencies"
 
 	def load_references(self, path):
 		files = os.listdir(path)
 		percentage = 0
 		self.reference_frequencies = {}
+		loading_indicator.add_loading_data(len(files))
 		for n, indfile in enumerate(files):
+			loading_indicator.update_progress(1)
 			if indfile.find(".txt") == -1: continue
-			if math.floor(float(n) / len(files) * 10) > percentage:
-				percentage = math.floor(float(n) / len(files) * 10)
-				print percentage * 10, "percent complete (references)"
 			tag1, tag2 = indfile[0:-4].split('-')
 			tag1 = int(tag1)
 			tag2 = int(tag2)
@@ -177,33 +200,18 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 	"""This specialized distribution manager handles frequencies for secondary structures."""
 	
-	def _secondary_structures_dict(self, inner_value={}):
-		return {
-			secondary_struct_helix + "1" : inner_value, secondary_struct_helix + "2" : inner_value,
-			secondary_struct_helix + "3" : inner_value, secondary_struct_helix + "4" : inner_value,
-			secondary_struct_helix + "5" : inner_value, secondary_struct_helix + "6" : inner_value,
-			secondary_struct_helix + "7" : inner_value, secondary_struct_helix + "8" : inner_value,
-			secondary_struct_helix + "9" : inner_value, secondary_struct_helix + "10" : inner_value,
-			secondary_struct_sheet + "0" : inner_value, secondary_struct_sheet + "1" : inner_value,
-			secondary_struct_sheet + "-1" : inner_value
-		}
-	
 	def __init__(self, frequencies_path):
 		"""frequencies_path should be a path to a directory of alpha zones paired with frequencies for individual secondary structure types."""
 		self.alpha_frequencies = {}
-		self.total_interactions = self._secondary_structures_dict(inner_value=0)
-		self.median_frequencies = self._secondary_structures_dict(inner_value=0)
+		self.total_interactions = _secondary_structures_dict(inner_value=0)
+		self.median_frequencies = _secondary_structures_dict(inner_value=0)
 		self.blocks_secondary_structures = False
+		self.identifier = os.path.basename(frequencies_path)
 		self.total_median = 0
-		print "Loading {}...".format(self)
-		a = datetime.datetime.now()
 		self.load_frequencies(frequencies_path)
-		b = datetime.datetime.now()
-		print "Loaded {0} in {1:.4f} sec.".format(self, (b - a).total_seconds())
 		self.weight = 1.0
 		self.type = frequency_consec_disttype
 		self.defaultvalue = 0
-		self.identifier = os.path.basename(frequencies_path)
 	
 	def alpha_frequency(self, sec_struct_id, zone):
 		"""This helper function retrieves the frequency of 'zone' in the loaded frequency data. sec_struct_id is the string, which is also a key in the data (e.g. "helix1", "sheet0")."""
@@ -223,7 +231,7 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 		for aa in data:
 			if not aa: continue
 			sec_struct = protein.secondary_structure_aa(aa.tag)
-			if not sec_struct: continue
+			if not _is_valid_secondary_structure(sec_struct): continue
 			sec_struct_type = sec_struct[0].type + str(sec_struct[1].identifiers[0])
 			if prior != 2:
 				nearby = []
@@ -234,7 +242,7 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 			for aa2 in nearby:
 				if (aa.tag in taglist and aa2.tag in taglist[aa.tag]) or (aa2.tag in taglist and aa.tag in taglist[aa2.tag]):
 					continue
-				hypo = next((x for x in data if x.tag == aa2.tag), None)
+				hypo = next((x for x in data if x and x.tag == aa2.tag), None)
 				if hypo is not None: aa2 = hypo
 				elif isolate: continue
 				if aa2.tag - aa.tag == 1 and aa.has_break: continue
@@ -266,14 +274,12 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 	def load_frequencies(self, path):
 		files = os.listdir(path)
 		percentage = 0
-		self.total_interactions = self._secondary_structures_dict(inner_value=0)
+		self.total_interactions = _secondary_structures_dict(inner_value=0)
+		loading_indicator.add_loading_data(len(files))
 		for n, indfile in enumerate(files):
+			loading_indicator.update_progress(1)
 			if indfile.find(".txt") == -1: continue
-			if math.floor(float(n) / len(files) * 10) > percentage:
-				percentage = math.floor(float(n) / len(files) * 10)
-				print percentage * 10, "percent complete"
 			if "all" in indfile:
-				print "Skipping all file"
 				continue
 			sec_struct_type = indfile[0:-4]
 			with open(join(path, indfile), 'r') as file:
@@ -284,10 +290,9 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 					ptcomps, freq = line.strip().split(";")
 					alpha = Point3D(*ptcomps.split(","))
 					if alpha not in self.alpha_frequencies:
-						self.alpha_frequencies[alpha] = self._secondary_structures_dict(inner_value=0)
+						self.alpha_frequencies[alpha] = _secondary_structures_dict(inner_value=0)
 					self.alpha_frequencies[alpha][sec_struct_type] = float(freq)
 					self.total_interactions[sec_struct_type] += float(freq)
 		#Compute median total frequency
 		s = sorted(self.total_interactions.values())
 		self.total_median = sum(s) / float(len(s)) #s[int(len(s) / 2.0)]
-		print "Loaded frequencies"

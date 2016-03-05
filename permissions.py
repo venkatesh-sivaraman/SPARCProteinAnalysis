@@ -64,40 +64,6 @@ def _compute_bounds(p, mag):
 
 def xybounds(zone, mag):
 	"""This helper function computes the minimum and maximum x/y values that have vectors with magnitude mag in the cube defined by zone. Returns (minx, maxx, miny, maxy)."""
-	'''mins = [math.sqrt(mag ** 2 - zone.z ** 2), -math.sqrt(mag ** 2 - zone.z ** 2)]
-	maxs = [math.sqrt(mag ** 2 - (zone.z + 1.0) ** 2), -math.sqrt(mag ** 2 - (zone.z + 1.0) ** 2)]
-	if mins[0] > zone.x and mins[0] < zone.x + 1.0:
-		minx = mins[0]
-	elif mins[1] > zone.x and mins[1] < zone.x + 1.0:
-		minx = mins[1]
-	else:
-		assert False, "Neither min is within the zone (%r): %r" % (zone, mins)
-	if mins[0] > zone.y and mins[0] < zone.y + 1.0:
-		miny = mins[0]
-	elif mins[1] > zone.y and mins[1] < zone.y + 1.0:
-		miny = mins[1]
-	else:
-		assert False, "Neither min is within the zone (%r): %r" % (zone, mins)
-	if maxs[0] > zone.x and maxs[0] < zone.x + 1.0:
-		maxx = maxs[0]
-	elif maxs[1] > zone.x and maxs[1] < zone.x + 1.0:
-		maxx = maxs[1]
-	else:
-		assert False, "Neither max is within the zone (%r): %r" % (zone, maxs)
-	if maxs[0] > zone.y and maxs[0] < zone.y + 1.0:
-		maxy = maxs[0]
-	elif maxs[1] > zone.y and maxs[1] < zone.y + 1.0:
-		maxy = maxs[1]
-	else:
-		assert False, "Neither max is within the zone (%r): %r" % (zone, maxs)
-	if minx > maxx:
-		temp = minx
-		minx = maxx
-		maxx = temp
-	if miny > maxy:
-		temp = miny
-		miny = maxy
-		maxy = temp'''
 	xs, ys = _compute_bounds(zone, mag)
 	minx = min(xs)
 	maxx = max(xs)
@@ -130,6 +96,8 @@ class AAPermissionsManager(PermissionsManager):
 		self.load_sequences_data(triplets_source)
 
 	def load_permissions_data(self, source):
+		if not os.path.exists(source):
+			return
 		paths = os.listdir(source)
 		for path in paths:
 			if ".txt" not in path: continue
@@ -182,15 +150,14 @@ class AAPermissionsManager(PermissionsManager):
 			else:
 				opposite_permissible = False
 		if len(candidate_zones) == 0:
-			#candidate_zones = self.allowed_zones[type2][type1]
 			if prior:
 				candidate_zones = [zones[0] for zones in self.permissible_sequences]
 			else:
 				candidate_zones = [zones[1] for zones in self.permissible_sequences]
+	
 		for alpha_zone in candidate_zones:
 			if (alpha_zone.y <= 0.0 and prior == True) or (alpha_zone.y > 0.0 and prior == False):
 				continue
-			if alpha_zone not in self.allowed_zones[type2][type1]: continue
 			retro_candidates = []
 			if opposite_aa is not None and opposite_permissible:
 				#Search for pairs within the top-level keys of permissible_sequences that the new amino acid could use
@@ -202,7 +169,6 @@ class AAPermissionsManager(PermissionsManager):
 						if zone1 in self.permissible_sequences[(zonea, zoneb)]:
 							retro_candidates.append(zonea)
 			if len(retro_candidates) == 0:
-				#retro_candidates = self.allowed_zones[type1][type2]
 				if prior:
 					retro_candidates = [zones[1] for zones in self.permissible_sequences if zones[0] == alpha_zone]
 				else:
@@ -215,7 +181,6 @@ class AAPermissionsManager(PermissionsManager):
 			for retro_zone in retro_candidates:
 				if (retro_zone.y <= 0.0 and prior == False) or (retro_zone.y > 0.0 and prior == True):
 					continue
-				if retro_zone not in self.allowed_zones[type1][type2]: continue
 				axes = aminoacid.axes_for_zone(alpha_zone, retro_zone)
 				if not axes: continue
 				hypo = aminoacid.hypothetical(PositionZone(alocation, axes[0], axes[1], axes[2]), True)
@@ -228,7 +193,7 @@ class AAPermissionsManager(PermissionsManager):
 		"""This overridden function accepts an amino acid whose location's permissions are requested, and a reference_aa to which the amino acid's position should be compared. Set prior to True if reference_aa comes before aminoacid, and False if not. Return values are position zones in the global coordinate system."""
 		type1 = aacode(aminoacid.type)
 		type2 = aacode(reference_aa.type)
-		if (prior == True and reference_aa.carbon.distanceto(aminoacid.nitrogen) > 2.0) or (prior == False and reference_aa.nitrogen.distanceto(aminoacid.carbon) > 2.0):
+		if (prior == True and reference_aa.carbon.distanceto(aminoacid.nitrogen) > 3.0) or (prior == False and reference_aa.nitrogen.distanceto(aminoacid.carbon) > 3.0):
 			return False
 		if prior:
 			loc = reference_aa.tolocal(aminoacid.acarbon).floor()
@@ -253,14 +218,14 @@ class AASecondaryStructurePermissionsManager(PermissionsManager):
 	def __init__(self, source):
 		"""For source, pass in a directory of files (one for each secondary structure type) specifying the allowed FULL position zones for that type of structure."""
 		super(AASecondaryStructurePermissionsManager, self).__init__()
-		self.allowed_zones = {
-			secondary_struct_helix + "1" : [], secondary_struct_helix + "2" : [],
-			secondary_struct_helix + "3" : [], secondary_struct_helix + "4" : [],
-			secondary_struct_helix + "5" : [], secondary_struct_helix + "6" : [],
-			secondary_struct_helix + "7" : [], secondary_struct_helix + "8" : [],
-			secondary_struct_helix + "9" : [], secondary_struct_helix + "10" : [],
-			secondary_struct_sheet + "0" : [], secondary_struct_sheet + "1" : [],
-			secondary_struct_sheet + "-1" : []
+		self.permissible_sequences = {
+			secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+			secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+			secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+			secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+			secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+			secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+			secondary_struct_sheet + "-1" : {}
 		}
 		self.load_permissions_data(source)
 
@@ -269,45 +234,91 @@ class AASecondaryStructurePermissionsManager(PermissionsManager):
 		for path in paths:
 			if ".txt" not in path: continue
 			structure_type = path[:-4]
-			del self.allowed_zones[structure_type]
-			self.allowed_zones[structure_type] = []
+			if structure_type not in self.permissible_sequences: continue
+			del self.permissible_sequences[structure_type]
+			self.permissible_sequences[structure_type] = {}
 			with open(join(source, path), 'r') as file:
+				current_zones = None
 				for line in file:
-					pt = Point3D(*line.strip().split(","))
-					self.allowed_zones[structure_type].append(pt)
+					if len(line.strip()) == 0:
+						current_zones = None
+						continue
+					comps = line.split(";")
+					if not current_zones:
+						comps1 = comps[0].split(",")
+						comps2 = comps[1].split(",")
+						current_zones = (Point3D(*(float(c) for c in comps1)), Point3D(*(float(c) for c in comps2)))
+					else:
+						alpha_zone = Point3D(*(float(c) for c in comps[0].split(",")))
+						if current_zones not in self.permissible_sequences[structure_type]:
+							self.permissible_sequences[structure_type][current_zones] = []
+						self.permissible_sequences[structure_type][current_zones].append(alpha_zone)
 
-	def allowed_conformations(self, aminoacid, reference_aa, structure_type, subtype, prior=True, size=10):
+	def allowed_conformations(self, aminoacid, reference_aa, structure_type, subtype, prior=True, opposite_aa=None, size=10):
 		"""This overridden function accepts an amino acid whose allowed position zones are requested, and a reference_aa (prior amino acid or not depending on the value of prior) to which the amino acid's position should be favorable. The structure_type and subtype can be obtained from the secondary structure and strand objects in the protein. Return values are position zones in the global coordinate system."""
 		info_key = structure_type + str(subtype)
-		if info_key not in self.allowed_zones:
+		if info_key not in self.permissible_sequences:
 			print "Secondary structure type", info_key, "not supported."
 			return []
-		data = self.allowed_zones[info_key]
+		data = self.permissible_sequences[info_key]
 		if len(data) == 0:
 			print "No data available for secondary structure type", info_key
 			return []
-
 		ret = []
-		for alpha_zone in data:
+
+		candidate_zones = []
+		opposite_permissible = True
+		if opposite_aa is not None:
+			if prior == True:
+				zone1 = opposite_aa.aa_position_zone(reference_aa).alpha_zone
+				zone2 = reference_aa.aa_position_zone(opposite_aa).alpha_zone
+			else:
+				zone1 = reference_aa.aa_position_zone(opposite_aa).alpha_zone
+				zone2 = opposite_aa.aa_position_zone(reference_aa).alpha_zone
+			if (zone1, zone2) in data:
+				candidate_zones = data[(zone1, zone2)]
+			else:
+				opposite_permissible = False
+		if len(candidate_zones) == 0:
+			if prior:
+				candidate_zones = [zones[0] for zones in data]
+			else:
+				candidate_zones = [zones[1] for zones in data]
+
+		for alpha_zone in candidate_zones:
 			if (alpha_zone.y <= 0.0 and prior == True) or (alpha_zone.y > 0.0 and prior == False):
 				continue
+			
+			retro_candidates = []
+			if opposite_aa is not None and opposite_permissible:
+				#Search for pairs within the top-level keys of permissible_sequences that the new amino acid could use
+				for zonea, zoneb in data:
+					if prior == True and zonea == alpha_zone:
+						if zone2 in data[(zonea, zoneb)]:
+							retro_candidates.append(zoneb)
+					elif prior == False and zoneb == alpha_zone:
+						if zone1 in data[(zonea, zoneb)]:
+							retro_candidates.append(zonea)
+			if len(retro_candidates) == 0:
+				if prior:
+					retro_candidates = [zones[1] for zones in data if zones[0] == alpha_zone]
+				else:
+					retro_candidates = [zones[0] for zones in data if zones[1] == alpha_zone]
+
+			
 			alpha_zone = alpha_zone.add(Point3D(0.5, 0.5, 0.5))
 			alocation = reference_aa.toglobal(alpha_zone)
 			alpha_zone = reference_aa.toglobal(alpha_zone).subtract(reference_aa.acarbon).multiply(-1.0)
 			#mag = alpha_zone.magnitude()
 			#Imagine that we are changing the location of the reference_aa, but in fact we are just rotating the aminoacid to see at which axes it will have allowed interactions with the reference amino acid.
-			for retro_zone in self.allowed_zones[info_key]:
+			for retro_zone in retro_candidates:
 				if (retro_zone.y <= 0.0 and prior == False) or (retro_zone.y > 0.0 and prior == True):
 					continue
 				axes = aminoacid.axes_for_zone(alpha_zone, retro_zone)
 				if not axes: continue
 				hypo = aminoacid.hypothetical(PositionZone(alocation, axes[0], axes[1], axes[2]), True)
-				if (prior == True and reference_aa.carbon.distanceto(hypo.nitrogen) > 2.0) or (prior == False and reference_aa.nitrogen.distanceto(hypo.carbon) > 2.0):
+				if (prior == True and not self.is_valid(hypo, reference_aa, structure_type, subtype)) or (prior == False and not self.is_valid(hypo, reference_aa, prior, structure_type, subtype)):
 					continue
-				if prior is True:
-					assert self.is_valid(hypo, reference_aa, structure_type, subtype), "Yielding invalid orientation for post: {} and {} ({})".format(hypo, reference_aa, reference_aa.tolocal(alocation))
-				else:
-					assert self.is_valid(hypo, reference_aa, structure_type, subtype, prior), "Yielding invalid orientation for prior: {} and {} ({})".format(hypo, reference_aa, reference_aa.tolocal(alocation))
 				ret.append(PositionZone(alocation, axes[0], axes[1], axes[2]))
 		return ret
 			
@@ -315,20 +326,27 @@ class AASecondaryStructurePermissionsManager(PermissionsManager):
 	def is_valid(self, aminoacid, reference_aa, structure_type, subtype, prior=True):
 		"""This overridden function accepts an amino acid whose location's permissions are requested, and a reference_aa to which the amino acid's position should be compared. Set prior to True if reference_aa comes before aminoacid, and False if not. Return values are position zones in the global coordinate system."""
 		info_key = structure_type + str(subtype)
-		if info_key not in self.allowed_zones:
+		if info_key not in self.permissible_sequences:
 			print "Secondary structure type", info_key, "not supported."
 			return []
-		data = self.allowed_zones[info_key]
+		data = self.permissible_sequences[info_key]
 		if len(data) == 0:
 			print "No data available for secondary structure type", info_key
 			return []
 
-		loc = reference_aa.tolocal(aminoacid.acarbon).floor()
-		if (prior == True and reference_aa.carbon.distanceto(aminoacid.nitrogen) > 2.0) or (prior == False and reference_aa.nitrogen.distanceto(aminoacid.carbon) > 2.0):
+		if (prior == True and reference_aa.carbon.distanceto(aminoacid.nitrogen) > 3.0) or (prior == False and reference_aa.nitrogen.distanceto(aminoacid.carbon) > 3.0):
 			return False
-		if loc in self.allowed_zones[info_key]:
+		if prior:
+			loc = reference_aa.tolocal(aminoacid.acarbon).floor()
 			loc2 = aminoacid.tolocal(reference_aa.acarbon).floor()
-			if loc2 in self.allowed_zones[info_key]:
+		else:
+			loc = aminoacid.tolocal(reference_aa.acarbon).floor()
+			loc2 = reference_aa.tolocal(aminoacid.acarbon).floor()
+
+		allowed = [zones[0] for zones in data]
+		if loc in allowed: #self.allowed_zones[type2][type1]:
+			allowed = [zones[1] for zones in data if zones[0] == loc]
+			if loc2 in allowed:
 				return True
 			else:
 				return False

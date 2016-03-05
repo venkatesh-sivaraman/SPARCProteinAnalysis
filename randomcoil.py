@@ -42,7 +42,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 				if secondary_structures and struct_permissions:
 					sec_struct = find_secondary_structure(secondary_structures, i)
 					if sec_struct and i > sec_struct[1].start:
-						candidates = struct_permissions.allowed_conformations(aminoacid, last_aa, sec_struct[0].type, sec_struct[1].identifiers[0])
+						candidates = struct_permissions.allowed_conformations(aminoacid, last_aa, sec_struct[0].type, sec_struct[1].identifiers[0], opposite_aa=second_last_aa)
 						if not len(candidates):
 							print "No permissible candidates with secondary structure"
 						else:
@@ -54,6 +54,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 					if permissions == None:
 						current_pt = last_aa.toglobal(Point3D(random.uniform(3.0, 3.5), random.uniform(bondangle - 0.2, bondangle + 0.2), random.uniform(bondangle - 0.2, bondangle + 0.2)).tocartesian())
 					else:
+						print aminoacid, last_aa, second_last_aa
 						candidates = permissions.allowed_conformations(aminoacid, last_aa, opposite_aa=second_last_aa)
 						if not len(candidates):
 							print "No permissible candidates"

@@ -1,8 +1,7 @@
 from distutils.core import setup, Extension
+from Cython.Build import cythonize
 
-module1 = Extension('fastint', ['_fastint.c'])
-
-setup (name = "stringint",
+setup (name = "PythonProteins",
 	   version = "1.0",
-	   description = "Fast conversion of string to int.",
-	   ext_modules = [module1])
+	   description = "Protein folding simulation tool",
+	   ext_modules = cythonize("proteinmath.pyx"))

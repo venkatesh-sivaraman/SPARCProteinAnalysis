@@ -42,6 +42,7 @@ class Polypeptide(object):
 
 	def add_aas(self, aas):
 		self.mass = 0.0
+		if not self.hashtable: self.hashtable = AAHashTable()
 		for aa in aas:
 			self.aminoacids.append(aa)
 			self.hashtable.add(aa)
@@ -94,6 +95,8 @@ class Polypeptide(object):
 		chain_letters = string.ascii_uppercase
 		chain = 0
 		for aa in self.aminoacids:
+			aa.nitrogen = aa.toglobal(Point3D(NITROGEN_BOND_LENGTH, math.pi + math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
+			aa.carbon = aa.toglobal(Point3D(CARBON_BOND_LENGTH, math.pi - math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
 			ret += "ATOM  {0:>5}  N   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.nitrogen.x, "%.3f" % aa.nitrogen.y, "%.3f" % aa.nitrogen.z)
 			idx += 1
 			ret += "ATOM  {0:>5}  CA  {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.acarbon.x, "%.3f" % aa.acarbon.y, "%.3f" % aa.acarbon.z)
@@ -139,6 +142,8 @@ class Polypeptide(object):
 		center = center.multiply(1.0 / len(self.aminoacids))
 		for aa in self.aminoacids:
 			aa.acarbon = aa.acarbon.subtract(center)
+			aa.nitrogen = aa.nitrogen.subtract(center)
+			aa.carbon = aa.carbon.subtract(center)
 
 	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False):
 		"""Pass in a file or file-like object to read. Set checkgaps to True to return a list of missing amino acid indices (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
@@ -219,6 +224,8 @@ class Polypeptide(object):
 					current_aa.compute_coordinate_system_vectors()
 					if current_aa.i == Point3D.zero() and len(self.aminoacids) > 0:
 						self.aminoacids.pop()
+						if fillgaps:
+							self.aminoacids.append(None)
 				current_aa = AminoAcid(line[17:20], current_tag)
 				self.aminoacids.append(current_aa)
 	

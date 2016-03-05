@@ -2,6 +2,7 @@
 
 import os
 from aminoacids import *
+import loading_indicator
 
 # This dictionary stores all the position zones in the first octant along with the number of
 # other position zones which contain points at the same distances as each one.
@@ -12,15 +13,15 @@ num_buckets = 8000
 def load_reference_state(helper_path):
 	"""This function performs a one-time initialization for the reference state. Currently, this version uses a text file that provides the number of zones with the same distance range as each position zone in the first octant."""
 	global radial_matches
-	print "Reading reference state data"
 	radial_matches = {}
+	loading_indicator.add_loading_data(1)
 	with open(helper_path, 'r') as file:
 		for line in file:
 			comps = line.split(";")
 			point = Point3D(*(float(x) for x in comps[0].split(",")))
 			matches = int(comps[1])
 			radial_matches[point] = matches
-	print "Done reading reference state", len(radial_matches)
+	loading_indicator.update_progress(1)
 
 def is_initialized():
 	"""Returns True if the radial_matches dictionary has been populated, indicating that the reference_state is ready to be computed, and False if not."""

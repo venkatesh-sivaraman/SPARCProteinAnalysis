@@ -343,11 +343,9 @@ def constructive_folding_iteration(protein, psource, file=None):
 	elif segment[-1].tag == len(protein.aminoacids) - 1:
 		anchor = AAAnchor.make(protein.aminoacids[segment[0].tag - 1], weight=4, hook=0)
 	else:
-		print "folding doesn't understand this segment:", segment
-	probabilities = psource.probabilities(segment, anchors=[anchor], primanchor=0, prior=prior)
+		assert False, "Folding doesn't understand this segment: %r" % segment
+	probabilities = psource.probabilities(segment, anchors=[anchor], primanchor=0, prior=prior, numconfs=0)
 
-	if segment[0].tag == 0:
-		print len(probabilities), "probabilities for the first segment"
 	#Sample the cumulative distribution function once and execute the change.
 	selected_conformation = None
 	application_ret = None
@@ -363,7 +361,6 @@ def constructive_folding_iteration(protein, psource, file=None):
 		for aa in protein.aminoacids:
 			aa.restore()
 		return
-	print "Modified"
 
 	violated = False
 	for aa in protein.aminoacids:

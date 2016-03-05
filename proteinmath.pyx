@@ -162,7 +162,10 @@ class Point3D(object):
 	def anglewith(self, vector):
 		assert type(self) is type(vector), "Wrong type"
 		if self.magnitude() * vector.magnitude() != 0:
-			return math.acos(dotproduct(self, vector) / (self.magnitude() * vector.magnitude()))
+			q = dotproduct(self, vector) / (self.magnitude() * vector.magnitude())
+			if q > 0.9999: return 0.0
+			elif q < -0.9999: return math.pi
+			return math.acos(q)
 		else:
 			return float('nan')
 

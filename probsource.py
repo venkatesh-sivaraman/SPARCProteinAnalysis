@@ -286,14 +286,14 @@ class AAProbabilitySource(ProbabilitySource):
 		if prior is True:	aa = aminoacids[0]
 		else:				aa = aminoacids[-1]
 		sec_struct = self.protein.secondary_structure_aa(aa)
+		opposite = None
+		if prior and anchor.tag > 0 and connected:
+			opposite = self.protein.aminoacids[anchor.tag - 1]
+		elif not prior and anchor.tag < len(self.protein.aminoacids) - 1 and connected:
+			opposite = self.protein.aminoacids[anchor.tag + 1]
 		if sec_struct and self.sec_struct_permissions:
-			allowed_conformations = self.sec_struct_permissions.allowed_conformations(aa, anchor, sec_struct[0].type, sec_struct[1].identifiers[0], prior)
+			allowed_conformations = self.sec_struct_permissions.allowed_conformations(aa, anchor, sec_struct[0].type, sec_struct[1].identifiers[0], prior, opposite_aa=opposite)
 		else:
-			opposite = None
-			if prior and anchor.tag > 0 and connected:
-				opposite = self.protein.aminoacids[anchor.tag - 1]
-			elif not prior and anchor.tag < len(self.protein.aminoacids) - 1 and connected:
-				opposite = self.protein.aminoacids[anchor.tag + 1]
 			allowed_conformations = self.permissions.allowed_conformations(aa, anchor, prior, opposite_aa=opposite)
 
 		random.shuffle(allowed_conformations)
@@ -417,7 +417,7 @@ class AAProbabilitySource(ProbabilitySource):
 						second_last = self.protein.aminoacids[start.tag - 1]
 				sec_struct = self.protein.secondary_structure_aa(aminoacids[-1])
 				if sec_struct and self.sec_struct_permissions:
-					confs = self.sec_struct_permissions.allowed_conformations(aminoacids[-1], last, sec_struct[0].type, sec_struct[1].identifiers[0])
+					confs = self.sec_struct_permissions.allowed_conformations(aminoacids[-1], last, sec_struct[0].type, sec_struct[1].identifiers[0], opposite_aa=second_last)
 					confs2 = self.sec_struct_permissions.allowed_conformations(aminoacids[-1], end, sec_struct[0].type, sec_struct[1].identifiers[0], prior=False)
 				else:
 					confs = self.permissions.allowed_conformations(aminoacids[-1], last, opposite_aa=second_last)
@@ -435,7 +435,7 @@ class AAProbabilitySource(ProbabilitySource):
 								continue
 							yieldct += 1
 							yield chain + [pz]
-							if yieldct == 10: return
+							if (yieldct >= 10 and not sec_struct) or yieldct == 20: return
 			else:
 				for saw in self._iter_permissible_randomcoils(aminoacids, end, start, chain, yieldct):
 					yieldct += 1
@@ -454,7 +454,7 @@ class AAProbabilitySource(ProbabilitySource):
 						second_last = self.protein.aminoacids[start.tag - 1]
 				sec_struct = self.protein.secondary_structure_aa(aminoacids[len(chain)])
 				if sec_struct and self.sec_struct_permissions:
-					confs = self.sec_struct_permissions.allowed_conformations(aminoacids[len(chain)], last, sec_struct[0].type, sec_struct[1].identifiers[0])
+					confs = self.sec_struct_permissions.allowed_conformations(aminoacids[len(chain)], last, sec_struct[0].type, sec_struct[1].identifiers[0], opposite_aa=second_last)
 				else:
 					confs = self.permissions.allowed_conformations(aminoacids[len(chain)], last, opposite_aa=second_last)
 				#I'm using a constant number here to save on performance. Only 10 of the given conformations will be chosen, which still gives a total of 10^(n - 1) iterations before the last residue.
@@ -471,7 +471,7 @@ class AAProbabilitySource(ProbabilitySource):
 					for saw in self._iter_permissible_randomcoils(aminoacids, start, end, chain + [pz], yieldct):
 						yieldct += 1
 						yield saw
-						if yieldct == 10: return
+						if (yieldct >= 10 and not sec_struct) or yieldct == 20: return
 				#print len(chain), "did", iters
 			else:
 				for saw in self._iter_permissible_randomcoils(aminoacids, end, start, chain, yieldct):
@@ -674,14 +674,14 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 					peptide.read_file(lines[last_read : i + 1])
 					if curr_score == 0.0:
 						curr_score = sum(d.score(peptide, peptide.aminoacids) for d in self.distributions)
-					if curr_score / float(len(peptide.aminoacids)) <= 1.0:
-						confs.append(([aa.pz_representation() for aa in peptide.aminoacids], curr_score, score_to_probability(curr_score)))
-						if len(confs) % 50 == 0:
-							print "Loaded", len(confs), "conformations..."
+					confs.append(([aa.pz_representation() for aa in peptide.aminoacids], curr_score, score_to_probability(curr_score)))
+					if len(confs) % 50 == 0:
+						print "Loaded", len(confs), "conformations..."
 					curr_score = 0.0
 					last_read = i + 1
 					del peptide.aminoacids[:]
 					peptide.hashtable = None
+		confs = sorted(confs, key=lambda x: x[1])[:int(len(confs) * 0.05)]
 		print "Loaded", len(confs), "conformations for segment", cluster_num
 		if cluster_num == 1:
 			self.c1_conformations = confs
@@ -690,16 +690,11 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 		else:
 			print "AAConstructiveProbabilitySource doesn't support segment number", cluster_num, ". Sorry!"
 
-	def generate_initial_structure(self, sequence):
-		'''This method creates an initial structure by combining the two segments in a random way. Provide the amino acid sequence of the entire segment pair so that we know what amino acids to add.'''
+	def generate_structure_from_segments(self, sequence, c1_struct, c2_struct):
+		'''This method combines the structures in c1_struct and c2_struct with a random connection orientation.'''
 		aminoacids = []
 		hashtable = AAHashTable()
 		
-		#First choose a random structure in c1_conformations.
-		weights = [c[2] for c in self.c1_conformations]
-		total = float(sum(weights))
-		weights = [w / total for w in weights]
-		c1_struct = self.c1_conformations[np.random.choice(len(self.c1_conformations), p=weights)][0]
 		assert len(c1_struct) == self.cluster1[1] - self.cluster1[0], "Mismatched lengths: {} position zones for cluster {}".format(len(c1_struct), self.cluster1)
 		for pz in c1_struct:
 			aminoacid = AminoAcid(aatypec(sequence[len(aminoacids)]), tag=len(aminoacids), acarbon=pz.alpha_zone)
@@ -712,6 +707,8 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 		second_last = None
 		if len(aminoacids) > 1: second_last = aminoacids[-2]
 		candidates = self.permissions.allowed_conformations(pivot, aminoacids[-1], opposite_aa=second_last)
+		if len(candidates) == 0:
+			candidates = self.permissions.allowed_conformations(pivot, aminoacids[-1])
 		assert len(candidates) > 0, "No permissible candidates for pivot"
 		while len(candidates) > 0 and (pivot.acarbon == Point3D.zero() or len(hashtable.nearby_aa(pivot, self.steric_cutoff, consec=False)) > 0):
 			zone = random.choice(candidates)
@@ -721,16 +718,6 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 		hashtable.add(pivot)
 		aminoacids.append(pivot)
 
-		def is_steric_violation():
-			for aa in aminoacids:
-				if len(hashtable.nearby_aa(aa, self.steric_cutoff, consec=False)) > 0: return True
-			return False
-
-		#Choose a random structure in c2_conformations that does not cause a steric clash.
-		weights = [c[2] for c in self.c2_conformations]
-		total = float(sum(weights))
-		weights = [w / total for w in weights]
-		c2_struct = self.c2_conformations[np.random.choice(len(self.c2_conformations), p=weights)][0]
 		assert len(c2_struct) == self.cluster2[1] - self.cluster2[0], "Mismatched lengths: {} position zones for cluster {}".format(len(c2_struct), self.cluster2)
 		pivot_hypo = pivot.hypothetical(c2_struct[0])
 		for	pz in c2_struct[1:]:
@@ -741,8 +728,27 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 			hashtable.add(aminoacid)
 			aminoacids.append(aminoacid)
 
-		test_idx = 1
-		while is_steric_violation():
+		return (aminoacids, hashtable)
+	
+	def generate_initial_structure(self, sequence):
+		'''This method creates an initial structure by combining the two segments in a random way. Provide the amino acid sequence of the entire segment pair so that we know what amino acids to add.'''
+		#First choose a random structure in c1_conformations.
+		weights = [c[2] for c in self.c1_conformations]
+		total = float(sum(weights))
+		weights = [w / total for w in weights]
+		c1_struct = self.c1_conformations[np.random.choice(len(self.c1_conformations), p=weights)][0]
+
+		#Choose a random structure in c2_conformations that does not cause a steric clash.
+		weights = [c[2] for c in self.c2_conformations]
+		total = float(sum(weights))
+		weights = [w / total for w in weights]
+		c2_struct = self.c2_conformations[np.random.choice(len(self.c2_conformations), p=weights)][0]
+
+		test_idx = 0
+		aas, hashtable = self.generate_structure_from_segments(sequence, c1_struct, c2_struct)
+		
+		#Check for steric violation
+		while next((aa for aa in aas if len(hashtable.nearby_aa(aa, self.steric_cutoff, consec=False))), None):
 			if test_idx == 50:
 				self.generate_initial_structure(sequence)
 				return
@@ -750,17 +756,9 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 				hashtable.remove(aminoacids[i])
 			del aminoacids[self.cluster2[0] + 1 : self.cluster2[1]]
 			c2_struct = self.c2_conformations[np.random.choice(len(self.c2_conformations), p=weights)][0]
-			pivot_hypo = pivot.hypothetical(c2_struct[0])
-			for	pz in c2_struct[1:]:
-				aminoacid = AminoAcid(aatypec(sequence[len(aminoacids)]), tag=len(aminoacids))
-				pivoted_pz = pivot.globalpz(pivot_hypo.localpz(pz))
-				aminoacid.acarbon = pivoted_pz.alpha_zone
-				aminoacid.set_axes(pivoted_pz.x_axis, pivoted_pz.y_axis, pivoted_pz.z_axis)
-				hashtable.add(aminoacid)
-				aminoacids.append(aminoacid)
+			aas, hashtable = self.generate_structure_from_segments(sequence, c1_struct, c2_struct)
 			test_idx += 1
-
-		self.protein.add_aas(aminoacids)
+		self.protein.add_aas(aas)
 
 
 	def choose_segment(self, segment_length):
@@ -812,16 +810,18 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 		#Choose some predetermined conformations to try as well
 		if "numconfs" in kwargs: numconfs = kwargs["numconfs"]
 		else:					 numconfs = 25
-		if prior:
-			weights = [c[2] for c in self.c2_conformations]
-			total = float(sum(weights))
-			weights = [w / total for w in weights]
-			seg_confs = [self.c2_conformations[c][0] for c in np.random.choice(len(self.c2_conformations), numconfs, p=weights)]
-		else:
-			weights = [c[2] for c in self.c1_conformations]
-			total = float(sum(weights))
-			weights = [w / total for w in weights]
-			seg_confs = [self.c1_conformations[c][0] for c in np.random.choice(len(self.c1_conformations), numconfs, p=weights)]
+		if numconfs > 0:
+			if prior:
+				weights = [c[2] for c in self.c2_conformations]
+				total = float(sum(weights))
+				weights = [w / total for w in weights]
+				seg_confs = [self.c2_conformations[c][0] for c in np.random.choice(len(self.c2_conformations), numconfs, p=weights)]
+			else:
+				weights = [c[2] for c in self.c1_conformations]
+				total = float(sum(weights))
+				weights = [w / total for w in weights]
+				seg_confs = [self.c1_conformations[c][0] for c in np.random.choice(len(self.c1_conformations), numconfs, p=weights)]
+		else: seg_confs = []
 
 		def _iter_confs(seg_conf=None):
 			starters = aminoacids

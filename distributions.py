@@ -1,9 +1,9 @@
 from aminoacids import *
 from os.path import join
 import os
-import fastint
 from math import floor, fabs
 import datetime
+import loading_indicator
 
 frequency_disttype = 0
 frequency_nonconsec_disttype = 1
@@ -196,13 +196,14 @@ class MediumDistributionManager(DistributionManager):
 		self.defaultvalue = 0
 		self.frequencies = [{} for i in xrange(AMINO_ACID_COUNT)]
 		self.median_frequencies = [0.0 for i in xrange(AMINO_ACID_COUNT)]
-		print "Loading {}...".format(self)
 		self.load_frequencies(frequencies_path)
 		self.identifier = os.path.basename(frequencies_path)
 
 	def load_frequencies(self, frequencies_path):
 		files = os.listdir(frequencies_path)
+		loading_indicator.add_loading_data(len(files))
 		for indfile in files:
+			loading_indicator.update_progress(1)
 			if indfile.find(".txt") == -1: continue
 			idx = int(indfile[0:-4])
 			with open(join(frequencies_path, indfile), 'r') as file:
@@ -219,7 +220,6 @@ class MediumDistributionManager(DistributionManager):
 						self.frequencies[idx][coord] = float(comps[1])
 		for idx in xrange(AMINO_ACID_COUNT):
 			self.median_frequencies[idx] = sum(self.frequencies[idx])# / float(len([f for f in self.frequencies[idx] if f != 0]))
-		print "Loaded medium frequencies"
 
 	def score(self, protein, data):
 		"""Pass in an array of amino acids for data."""

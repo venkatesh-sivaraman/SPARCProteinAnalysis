@@ -255,8 +255,8 @@ class AminoAcid(object):
 			self.k = k.normalize()
 		self.localscore = 0.0
 		if calculate_atoms is True:
-			self.carbon = self.toglobal(Point3D(CARBON_BOND_LENGTH, math.acos(-1.0 / 3.0), math.acos(-1.0 / 3.0)).tocartesian())
-			self.nitrogen = self.toglobal(Point3D(NITROGEN_BOND_LENGTH, 2 * math.pi - math.acos(-1.0 / 3.0), math.acos(-1.0 / 3.0)).tocartesian())
+			self.nitrogen = self.toglobal(Point3D(NITROGEN_BOND_LENGTH, math.pi + math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
+			self.carbon = self.toglobal(Point3D(CARBON_BOND_LENGTH, math.pi - math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
 		if "axes" in self._observers:
 			for callback in self._observers["axes"]:
 				callback(self, "axes", old)
@@ -276,14 +276,14 @@ class AminoAcid(object):
 		globali = Point3D(1.0, 0.0, 0.0).in_coordinate_system(pz.x_axis, pz.y_axis, pz.z_axis)
 		globalj = Point3D(0.0, 1.0, 0.0).in_coordinate_system(pz.x_axis, pz.y_axis, pz.z_axis)
 		globalk = Point3D(0.0, 0.0, 1.0).in_coordinate_system(pz.x_axis, pz.y_axis, pz.z_axis)
-		return Point3D(NITROGEN_BOND_LENGTH, 2 * math.pi - math.acos(-1.0 / 3.0), math.acos(-1.0 / 3.0)).tocartesian().in_coordinate_system(globali, globalj, globalk).add(pz.alpha_zone)
+		return Point3D(NITROGEN_BOND_LENGTH, math.pi + math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian().in_coordinate_system(globali, globalj, globalk).add(pz.alpha_zone)
 
 	@classmethod
 	def clocation(cls, pz):
 		globali = Point3D(1.0, 0.0, 0.0).in_coordinate_system(pz.x_axis, pz.y_axis, pz.z_axis)
 		globalj = Point3D(0.0, 1.0, 0.0).in_coordinate_system(pz.x_axis, pz.y_axis, pz.z_axis)
 		globalk = Point3D(0.0, 0.0, 1.0).in_coordinate_system(pz.x_axis, pz.y_axis, pz.z_axis)
-		return Point3D(CARBON_BOND_LENGTH, math.acos(-1.0 / 3.0), math.acos(-1.0 / 3.0)).tocartesian().in_coordinate_system(globali, globalj, globalk).add(pz.alpha_zone)
+		return Point3D(CARBON_BOND_LENGTH, math.pi - math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian().in_coordinate_system(globali, globalj, globalk).add(pz.alpha_zone)
 	
 	@property
 	def acarbon(self):
@@ -373,19 +373,19 @@ class AminoAcid(object):
 	def compute_coordinate_system_vectors(self):
 		"""Compute the vectors i, j, and k that produce a right-handed coordinate system such that the tetrahedral structure of the amino acid is represented in a constant manner: the N and C atoms are located in the -x, -z region, while the sidechain points upward and the hydrogen atom points forward along the xz-plane."""
 
-		n = self.nitrogen.subtract(self.acarbon)
-		c = self.carbon.subtract(self.acarbon)
+		n = self.nitrogen.subtract(self.acarbon).normalize()
+		c = self.carbon.subtract(self.acarbon).normalize()
 		axes = self.coordinate_axes(n, c)
 		if len(axes) > 0:
-			self.set_axes(*axes)
-		
+			self.set_axes(*axes, calculate_atoms=False)
+	
 	def coordinate_axes(self, n, c):
 		#First, find the y-axis by finding the candidate that minimizes the angle with the c-vector.
 		candidate1 = Point3D(c.x - n.x, c.y - n.y, c.z - n.z)
 		candidate2 = Point3D(n.x - c.x, n.y - c.y, n.z - c.z)
 		vectors = [ Point3D.zero(), Point3D.zero(), Point3D.zero() ]
 		vectors[1] = (candidate1 if (candidate1.anglewith(c) < candidate2.anglewith(c)) else candidate2).normalize()
-
+		
 		#Next, find the z-axis using the quadratic equation described in Notability, "Science Fair Calculations."
 		alpha = 3 * (c.y * n.z - n.y * c.z)
 		beta = c.z - n.z
@@ -406,11 +406,12 @@ class AminoAcid(object):
 		if math.fabs(vectors[1].in_coordinate_system(i1, vectors[1], candidate1).y - 1.0) <= 0.001:
 			vectors[0] = i1
 			vectors[2] = candidate1
-		else:
-			#elif math.fabs(vectors[1].in_coordinate_system(i2, vectors[1], candidate2).y - 1.0) <= 0.001:
+		elif math.fabs(vectors[1].in_coordinate_system(i2, vectors[1], candidate2).y - 1.0) <= 0.001:
 			vectors[0] = i2
 			vectors[2] = candidate2
-		#else: assert False, "no valid y-axis found: %.6f, %.6f" % (math.fabs(vectors[1].in_coordinate_system(i1, vectors[1], candidate1).y - 1.0), math.fabs(vectors[1].in_coordinate_system(i2, vectors[1], candidate2).y - 1.0))
+		else:
+			return []
+			#assert False, "no valid y-axis found: %.6f, %.6f" % (math.fabs(vectors[1].in_coordinate_system(i1, vectors[1], candidate1).y - 1.0), math.fabs(vectors[1].in_coordinate_system(i2, vectors[1], candidate2).y - 1.0))
 		return vectors
 
 	def aa_position_zone(self, aa):

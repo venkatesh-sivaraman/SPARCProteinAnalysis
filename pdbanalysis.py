@@ -1338,6 +1338,7 @@ def format_hydrophobicity_dist(input, output):
 						comps = line.split()
 					else:
 						comps = line.split(",")
+					if len(comps) < 2: continue
 					coord = int(comps[0])
 					dists[idx][coord] = float(comps[1])
 	else:
@@ -1511,7 +1512,7 @@ def best_weights(input, numweights=4):
 	maxcorrect = 0
 	maxweights = []
 	max_z = -100000
-	for w in weights[390:]:
+	for w in weights:
 		correct = 0
 		for path in os.listdir(input):
 			if os.path.isdir(os.path.join(input, path)):
@@ -1527,17 +1528,18 @@ def best_weights(input, numweights=4):
 			if native_guess == path[:path.find(".txt")] or native_guess == path[:path.find(".txt")] + "_orig":
 				correct += 1
 			#print path[:path.find(".txt")], native_guess
-		print w, "had", correct, "correct."
+		print str(w) + "\t" + str(correct)
 		if correct > maxcorrect:
 			maxcorrect = correct
 			maxweights = [w]
-			max_z = z_score(input, w)[2]
-		elif correct == maxcorrect:
+			#if correct == 54:
+			#	max_z = z_score(input, w)[2]
+		'''elif correct == maxcorrect:
 			z = z_score(input, w)[2]
 			if z < max_z:
 				max_z = z
 				maxcorrect = correct
-				maxweights = [w]
+				maxweights = [w]'''
 	print "Final: the combos", maxweights, "had a total of", maxcorrect, "correct guesses, with z score", max_z
 
 def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4):
@@ -1781,7 +1783,8 @@ def link_decoy_rmsd(energy_files, rmsd_files, weights):
 					print str(energies[nm]) + "\t" + str(rmsd)
 		gc.collect()
 
-def min_rmsd(input, original_structure):
+def min_rmsd(input, original_structure, dists=None):
+	'''If you pass dists, the SPARC score will be logged next to the rmsd.'''
 	tmpdir = os.path.join(os.path.dirname(input), "sp_tmp")
 	if os.path.exists(tmpdir): shutil.rmtree(tmpdir)
 	os.mkdir(tmpdir)
@@ -1798,9 +1801,17 @@ def min_rmsd(input, original_structure):
 				with open(os.path.join(tmpdir, "model.pdb"), "w") as file:
 					file.write(next_pdb)
 				rmsd = calc_rmsd(original_structure, os.path.join(tmpdir, "model.pdb"), tmpdir)
-				next_pdb = ""
 				if rmsd > 10000: continue
-				print modelno, rmsd
+				if dists:
+					peptide = Polypeptide()
+					peptide.read(os.path.join(tmpdir, "model.pdb"))
+					print modelno, sum(d.score(peptide, peptide.aminoacids) for d in dists), rmsd
+					del peptide.aminoacids[:]
+					peptide.hashtable = None
+					peptide = None
+				else:
+					print modelno, rmsd
+				next_pdb = ""
 				if rmsd < min_rmsd:
 					min_rmsd = rmsd
 					min_model = modelno
@@ -1840,7 +1851,9 @@ def score_structure_file(input, dists):
 			elif "ENDMDL" in line:
 				peptide = Polypeptide()
 				peptide.read_file(next_pdb)
-				print sum(d.score(peptide, peptide.aminoacids) for d in dists)
+				newc = peptide.aminoacids[5].toglobal(Point3D(CARBON_BOND_LENGTH, math.pi - math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
+				newn = peptide.aminoacids[5].toglobal(Point3D(NITROGEN_BOND_LENGTH, math.pi + math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
+				print peptide.aminoacids[5].carbon, math.cos(peptide.aminoacids[5].carbon.subtract(peptide.aminoacids[5].acarbon).anglewith(peptide.aminoacids[5].nitrogen.subtract(peptide.aminoacids[5].acarbon))), math.cos(newc.subtract(peptide.aminoacids[5].acarbon).anglewith(newn.subtract(peptide.aminoacids[5].acarbon))), sum(d.score(peptide, peptide.aminoacids) for d in dists)
 				del peptide.aminoacids[:]
 				peptide.hashtable = None
 				peptide = None
@@ -1893,7 +1906,7 @@ def aggregate_networkdata(input, output):
 	if not os.path.exists(output): os.mkdir(output)
 	done_secondary = os.path.exists(os.path.join(output, "secondary"))
 	for req_aa in xrange(0, AMINO_ACID_COUNT):
-		if os.path.exists(os.path.join(output, "medium-" + str(req_aa) + ".txt")):
+		if os.path.exists(os.path.join(output, "medium", str(req_aa) + ".txt")):
 			continue
 		if not done_secondary:
 			secondary_data = {
@@ -1908,6 +1921,7 @@ def aggregate_networkdata(input, output):
 		data = {
 			"nonconsec" : [{} for i in range(AMINO_ACID_COUNT)],
 			"consec" : [{} for i in range(AMINO_ACID_COUNT)],
+			"consec+secondary" : [{} for i in range(AMINO_ACID_COUNT)],
 			"short-range" : [{} for i in range(AMINO_ACID_COUNT)],
 			"medium" : [0 for i in xrange(100)]
 		}
@@ -1916,7 +1930,7 @@ def aggregate_networkdata(input, output):
 			if not os.path.isdir(os.path.join(input, subdir)): continue
 			print subdir
 			for subsubdir in os.listdir(os.path.join(input, subdir)):
-				if "medium" in subsubdir and not os.path.isdir(os.path.join(input, subdir, subsubdir)) and int(subsubdir[7:-4]) == req_aa:
+				'''if "medium" in subsubdir and not os.path.isdir(os.path.join(input, subdir, subsubdir)) and int(subsubdir[7:-4]) == req_aa:
 					print "Analyzing medium file", subsubdir, "in", subdir
 					with open(os.path.join(input, subdir, subsubdir), "r") as file:
 						for line in file:
@@ -1925,7 +1939,7 @@ def aggregate_networkdata(input, output):
 								data["medium"][int(comps[0])] += int(comps[1])
 
 				if not os.path.isdir(os.path.join(input, subdir, subsubdir)): continue
-				if subsubdir == "consec" or subsubdir == "nonconsec" or subsubdir == "short-range":
+				if subsubdir == "consec" or subsubdir == "nonconsec" or subsubdir == "short-range" or subsubdir == "consec+secondary":
 					for aacombo in os.listdir(os.path.join(input, subdir, subsubdir)):
 						if ".txt" not in aacombo: continue
 						aas = [int(x) for x in aacombo.replace(".txt", "").split("-")]
@@ -1951,8 +1965,8 @@ def aggregate_networkdata(input, output):
 									secondary_data[struct_type][pz] += int(comps[1])
 								else:
 									secondary_data[struct_type][pz] = int(comps[1])
-						del file
-				elif subsubdir == "medium":
+						del file'''
+				if subsubdir == "medium":
 					for aafile in os.listdir(os.path.join(input, subdir, subsubdir)):
 						if ".txt" not in aafile: continue
 						aaid = int(aafile.replace(".txt", ""))
@@ -1967,7 +1981,7 @@ def aggregate_networkdata(input, output):
 									if int(line.strip()) < len(data[subsubdir]):
 										data[subsubdir][int(line.strip())] += 1
 						del file
-				gc.collect()
+			gc.collect()
 
 		def write_file(key):
 			file_path = join(output, key)
@@ -1980,12 +1994,14 @@ def aggregate_networkdata(input, output):
 					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
 				f.close()
 
-		write_file("nonconsec")
+		'''write_file("nonconsec")
 		write_file("consec")
-		write_file("short-range")
+		write_file("consec+secondary")
+		write_file("short-range")'''
 
 		#Medium
-		medium_path = join(output, "medium-" + str(req_aa) + ".txt")
+		if not os.path.exists(os.path.join(output, "medium")): os.mkdir(os.path.join(output, "medium"))
+		medium_path = join(output, "medium", str(req_aa) + ".txt")
 		with open(medium_path, "w") as file:
 			for i, x in enumerate(data["medium"]):
 				file.write(str(i) + ' ' + str(x) + '\n')
@@ -2241,13 +2257,7 @@ def correlate_charmm_sparc(input):
 			if "ERROR" in line or "[" in line: continue
 			comps = line.strip().split(",")
 			if len(comps):
-				data.append((float(comps[0]), float(comps[3]) + float(comps[4]), math.log(float(comps[2]))))
-				'''if float(comps[2]) <= 0.0: continue
-				x = float(comps[3])
-				y = float(comps[4])
-				z = float(comps[5])
-				#print str(19.7479 + 0.0369995 * x - 0.0175025 * y + 0.0783111 * z) + "\t" + str(math.log(float(comps[2])))
-				print comps[3] + "\t" + comps[4] + "\t" + comps[5] + "\t" + str(math.log(float(comps[2])))'''
+				data.append((float(comps[0]), 4.0 * float(comps[3]) + float(comps[4]) + 4.0 * float(comps[5]) + 5.0 * float(comps[6]), float(comps[1]), float(comps[2])))
 	#data = sorted(data, key=lambda x: x[0])
 	for i, d in enumerate(data):
 		'''if i > 0:
@@ -2255,7 +2265,7 @@ def correlate_charmm_sparc(input):
 		else: comp2 = ""
 		comp1 = d[1] / d[2]
 		print str(comp1) + "\t" + comp2'''
-		print str(d[0]) + "\t" + str(d[1]) + "\t" + str(d[2])
+		print str(d[0]) + "\t" + str(d[1]) + "\t" + str(d[2]) + "\t" + str(d[3])
 
 #MARK: Reference State
 

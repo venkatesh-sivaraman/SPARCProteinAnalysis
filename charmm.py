@@ -71,8 +71,8 @@ def run_charmm(pdbpath, mdpfile="../default.mdp", minimize=False, pairwise=False
 			else:
 				cmd5 = "echo \"" + elements + " 10\n\n\" | gmx energy -f em.edr -s topol.tpr"
 			out = subprocess.check_output(cmd5, shell=True, stderr=fnull)
-	except:
-		print "Exception"
+	except Exception as e:
+		print "Exception", e
 		return None
 		
 	os.chdir(origWD) # get back to our original working directory
@@ -336,11 +336,8 @@ def compare_charmm_sparc_sp(structurepairs, sparc_location, output):
 
 #MARK: Magainin test
 
-def protein_protein_energies(pdbfile, sparc_location, output):
+def protein_protein_energies(pdbfile, distributions, output):
 	"""Takes the amino acids in the protein that you provide, duplicates them, and places the entire duplicated structure at various orientations with respect to the original structure, and evaluates both CHARMM and SPARC for each different orientation."""
-	#Load SPARC distribution
-	sparc = SPARCBasicDistributionManager(os.path.join(sparc_location, "consec"), True)
-	sparc_nc = SPARCBasicDistributionManager(os.path.join(sparc_location, "nonconsec"), False)
 	tmpdir = os.path.join(os.path.dirname(output), "sp_tmp")
 	if not os.path.exists(tmpdir): os.mkdir(tmpdir)
 	protpath = os.path.join(tmpdir, "prot.pdb")
@@ -348,7 +345,7 @@ def protein_protein_energies(pdbfile, sparc_location, output):
 	orig_dist = 0.0
 	bchain_start = 0
 	for dist in xrange(150):
-		distx = 5.0 - dist / 5.0
+		distx = (dist - 75) / 5.0 #5.0 - dist / 5.0
 		disty = -5.0 + dist / 5.0
 		peptide = Polypeptide()
 		peptide.read(pdbfile, otheratoms=True)
@@ -359,25 +356,53 @@ def protein_protein_energies(pdbfile, sparc_location, output):
 				bchain_start = i + 1
 				continue
 			if inbchain:
-				peptide.aminoacids[i].acarbon = peptide.aminoacids[i].acarbon.add(Point3D(0.0, distx, disty))
+				peptide.aminoacids[i].acarbon = peptide.aminoacids[i].acarbon.add(Point3D(0.0, distx, 0.0))
 				if i == bchain_start:
-					orig_dist = peptide.aminoacids[0].acarbon.distanceto(peptide.aminoacids[i].acarbon)
-					print "Original distance:", orig_dist
+					orig_dist = peptide.aminoacids[i - 1].acarbon.distanceto(peptide.aminoacids[i].acarbon)
 		cscore = charmm_score(peptide, protpath, minimize=True, mdpfile="../default.mdp", bonded=False)
-		print cscore
 		if not cscore: continue
 		newpeptide = Polypeptide()
 		newpeptide.read(os.path.join(tmpdir, "final.pdb"))
-		new_dist = newpeptide.aminoacids[0].acarbon.distanceto(newpeptide.aminoacids[bchain_start].acarbon)
-		print "New:", new_dist
-		spscore1 = sparc.score(newpeptide, newpeptide.aminoacids)
-		spscore2 = sparc_nc.score(newpeptide, newpeptide.aminoacids)
-		print spscore1, spscore2
+		new_dist = newpeptide.aminoacids[bchain_start - 1].acarbon.distanceto(newpeptide.aminoacids[bchain_start].acarbon)
+		print new_dist, cscore
+		spscores = [dist.score(newpeptide, newpeptide.aminoacids) for dist in distributions]
+		spscore_str = ""
+		for score in spscores:
+			spscore_str += str(score) + ","
+		spscore_str = spscore_str[:-1]
 		with open(output, "a") as ofile:
-			ofile.write("{},{},{},{},{}\n".format(new_dist, cscore[0], cscore[1], spscore1, spscore2))
+			ofile.write("{},{},{},{}\n".format(new_dist, cscore[0], cscore[1], spscore_str))
 		del newpeptide
 		del peptide
 		gc.collect()
+
+def file_compare_charmm_sparc(input, distributions):
+	"""This method goes through ALL structure models in the input file and calculates the CHARMM and SPARC scores for them, logging the results."""
+	tmpdir = os.path.join(os.path.dirname(input), "sp_tmp")
+	if os.path.exists(tmpdir): shutil.rmtree(tmpdir)
+	os.mkdir(tmpdir)
+	with open(input, "r") as file:
+		next_pdb = ""
+		modelno = 0
+		for line in file:
+			next_pdb += line
+			if "MODEL" in line:
+				modelno = int(line[5:].strip())
+			elif "ENDMDL" in line:
+				with open(os.path.join(tmpdir, "model.pdb"), "w") as file:
+					file.write(next_pdb)
+					peptide = Polypeptide()
+					peptide.read(os.path.join(tmpdir, "model.pdb"))
+					
+					cscore = run_charmm(os.path.join(tmpdir, "model.pdb"), minimize=True, mdpfile="../default_solvated.mdp", bonded=False, solvate=True)
+					if not cscore: continue
+					print str(modelno) + "\t" + str(sum(d.score(peptide, peptide.aminoacids) for d in distributions)) + "\t" + str(sum(cscore))
+					del peptide.aminoacids[:]
+					peptide.hashtable = None
+					peptide = None
+				next_pdb = ""
+	shutil.rmtree(tmpdir)
+
 
 def batch_compare_charmm_sparc(input, sparc_location, output):
 	"""This method goes through ALL structure files in input and calculates the CHARMM and SPARC scores for them, depositing the results in a text file located at output."""

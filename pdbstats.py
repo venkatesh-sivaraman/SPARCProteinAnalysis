@@ -7,6 +7,7 @@ from os.path import join
 from functools import partial
 from secondary_structure import *
 from sparc_distribution import *
+from charmm import *
 
 nonconsecutive_mode = 'n'
 consecutive_mode = 'c'
@@ -219,6 +220,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			"nonconsec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"short-range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"consec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"consec+secondary" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"medium" : [[] for i in range(AMINO_ACID_COUNT)],
 			"secondary" : {
 				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
@@ -253,7 +255,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
 			secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
 			secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
-			secondary_struct_sheet + "-1" : {}, "default": {}
+			secondary_struct_sheet + "-1" : {}, "default": {}, "all": {}
 		}
 	
 	def add_to_data(aa, aa2, tag1, tag2, key):
@@ -327,30 +329,33 @@ def block_stats_network(id, pdbids, output, mode='d'):
 							if sec_struct:
 								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
 								if sec_name not in data: continue
-								data_list = data[sec_name]
+								data_lists = [data[sec_name]]
 							else:
-								data_list = data["default"]
+								data_lists = [data["default"]]
+							data_lists.append(data["all"])
 						else:
-							data_list = data
+							data_list = [data]
 						if peptide.aminoacids[i + 1]:
 							#Figure out the orientations between the next consecutive residue and this one
 							next_zone = aa.aa_position_zone(peptide.aminoacids[i + 1]).alpha_zone
-							if (zone1, zone2) not in data_list:
-								data_list[(zone1, zone2)] = {}
-							if next_zone in data_list[(zone1, zone2)]:
-								data_list[(zone1, zone2)][next_zone] += 1
-							else:
-								data_list[(zone1, zone2)][next_zone] = 1
+							for data_list in data_lists:
+								if (zone1, zone2) not in data_list:
+									data_list[(zone1, zone2)] = {}
+								if next_zone in data_list[(zone1, zone2)]:
+									data_list[(zone1, zone2)][next_zone] += 1
+								else:
+									data_list[(zone1, zone2)][next_zone] = 1
 				
 						if peptide.aminoacids[i - 2]:
 							#Figure out the orientations between the last two consecutive residues
 							prev_zone = prev_aa.aa_position_zone(peptide.aminoacids[i - 2]).alpha_zone
-							if (zone1, zone2) not in data_list:
-								data_list[(zone1, zone2)] = {}
-							if prev_zone in data_list[(zone1, zone2)]:
-								data_list[(zone1, zone2)][prev_zone] += 1
-							else:
-								data_list[(zone1, zone2)][prev_zone] = 1
+							for data_list in data_lists:
+								if (zone1, zone2) not in data_list:
+									data_list[(zone1, zone2)] = {}
+								if prev_zone in data_list[(zone1, zone2)]:
+									data_list[(zone1, zone2)][prev_zone] += 1
+								else:
+									data_list[(zone1, zone2)][prev_zone] = 1
 				
 					elif mode == default_network_mode:
 						#Nonconsec
@@ -385,6 +390,10 @@ def block_stats_network(id, pdbids, output, mode='d'):
 									print "Partial omit %r (unknown aa)." % pdbid
 									reported = True
 									break
+							if not add_to_data(aa, aa2, tag1, tag2, "consec+secondary"):
+								print "Partial omit %r (unknown aa)." % pdbid
+								reported = True
+								break
 
 						#Medium
 						r = peptide.nearby_aa(aa, 10.0, i)
@@ -431,6 +440,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 		write_data("nonconsec")
 		write_data("consec")
 		write_data("short-range")
+		write_data("consec+secondary")
 		
 		#Secondary
 		write_path = join(output, "secondary")
@@ -570,13 +580,24 @@ def generate_structurepairs(pdbsample, output):
 			break
 	print "Done"
 
-def sparc_score_sequences(pdb_path, output, distributions):
+def sparc_score_sequences(pdb_path, output, distributions, stop_pt=None, charmm_scores=False):
 	
+	tmpdir = os.path.join(os.path.dirname(pdb_path), "sp_tmp")
+	if charmm_scores:
+		if os.path.exists(tmpdir):
+			shutil.rmtree(tmpdir)
+		os.mkdir(tmpdir)
+
 	peptide = Polypeptide()
 	pdbids = []
 	with open(pdb_path, "r") as file:
+		found_stopping_pt = (stop_pt == None or len(stop_pt) == 0)
 		for line in file:
 			if len(line.strip()) == 0: continue
+			if not found_stopping_pt and line.strip() == stop_pt:
+				found_stopping_pt = True
+				continue
+			if not found_stopping_pt: continue
 			pdbids.append(line.strip())
 
 	for pdbid in pdbids:
@@ -585,7 +606,7 @@ def sparc_score_sequences(pdb_path, output, distributions):
 		print "Processing " + pdbid + "..."
 		try:
 			response = urllib2.urlopen('http://www.rcsb.org/pdb/files/' + pdbid + '.pdb')
-			peptide.read_file(response, secondary_structure=True, fillgaps=True)
+			peptide.read_file(response, secondary_structure=True, fillgaps=True, otheratoms=charmm_scores)
 		except:
 			print "==========================Omit %r" % pdbid
 			continue
@@ -596,19 +617,27 @@ def sparc_score_sequences(pdb_path, output, distributions):
 			if random.randint(0, 100) < 90: continue
 			length = random.randint(3, 10)
 			length = min(len(peptide.aminoacids), i + length) - i
-			print "Evaluating segment", i, "-", i + length
-			scores = [d.score(peptide, peptide.aminoacids[i:i + length]) for d in distributions]
-			with open(output, "a") as file:
-				file.write("{},{},".format(pdbid, length))
-				scorestr = ""
-				for s in scores: scorestr += str(s) + ","
-				file.write(scorestr[:-1] + "\n")
+			try:
+				print "Evaluating segment", i, "-", i + length
+				scores = [d.score(peptide, peptide.aminoacids[i:i + length]) for d in distributions]
+				if charmm_scores == True:
+					cscores = charmm_score(peptide, os.path.join(tmpdir, "sequence.pdb"), mdpfile="../../default_nonminimized.mdp")
+					for c in cscores:
+						scores.append(c)
+				with open(output, "a") as file:
+					file.write("{},{},".format(pdbid, length))
+					scorestr = ""
+					for s in scores: scorestr += str(s) + ","
+					file.write(scorestr[:-1] + "\n")
+			except:
+				print "Partial omit -", pdbid
 
 		del peptide.aminoacids[:]
 		peptide.hashtable = None
 		gc.collect()
 	del peptide
-
+	if charmm_scores:
+		shutil.rmtree(tmpdir)
 
 #MARK: Secondary Structure Analysis
 
