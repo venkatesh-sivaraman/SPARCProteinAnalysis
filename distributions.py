@@ -49,6 +49,7 @@ class FrequencyDistributionManager(DistributionManager):
 		self.weight = 1.0
 		self.type = frequency_disttype
 		self.defaultvalue = 0
+		self.refstate = False
 	
 	def alpha_frequency(self, type1, type2, zone):
 		"""This helper function retrieves the frequency of 'zone' in the loaded frequency data. type1 refers to the type (code) of the amino acid that serves as the origin of the zone space, while type2 is the amino acid to which the zone refers."""
@@ -198,6 +199,7 @@ class MediumDistributionManager(DistributionManager):
 		self.median_frequencies = [0.0 for i in xrange(AMINO_ACID_COUNT)]
 		self.load_frequencies(frequencies_path)
 		self.identifier = os.path.basename(frequencies_path)
+		self.refstate = True
 
 	def load_frequencies(self, frequencies_path):
 		files = os.listdir(frequencies_path)
@@ -221,10 +223,10 @@ class MediumDistributionManager(DistributionManager):
 		for idx in xrange(AMINO_ACID_COUNT):
 			self.median_frequencies[idx] = sum(self.frequencies[idx])# / float(len([f for f in self.frequencies[idx] if f != 0]))
 
-	def score(self, protein, data):
+	def score(self, protein, data, isolate=False):
 		"""Pass in an array of amino acids for data."""
 		score = 0.0
-		density = 1.0 / (1.410 + 0.145 * math.exp(-protein.mass / 13.0)) # 0.73
+		density = 1.0 / (1.410 + 0.145 * math.exp(-protein.mass / 13000.0)) # 0.73
 		volume = (density * 1e24) / (6.02e23) * protein.mass
 		if volume <= 4000.0 / 3.0 * math.pi:
 			return score
@@ -232,7 +234,11 @@ class MediumDistributionManager(DistributionManager):
 			if not aa: continue
 			tag = aacode(aa.type)
 			if tag >= AMINO_ACID_COUNT: tag = 0
-			coord = len(protein.nearby_aa(aa, 10.0))
+			nearby = protein.nearby_aa(aa, 10.0)
+			if isolate:
+				coord = len([x for x in nearby if next((y for y in data if y and y.tag == x.tag), None)])
+			else:
+				coord = len(nearby)
 			freqs = self.frequencies[tag]
 			if coord in freqs:
 				f = freqs[coord]
@@ -253,9 +259,12 @@ class MediumDistributionManager(DistributionManager):
 				f = 0.0
 			#f0 = self.median_frequencies[tag]
 			f = f / self.median_frequencies[tag]
-			N = len(protein.aminoacids)
-			f0 = ((1 - (4000 * math.pi) / (3 * volume)) ** (N - 1)) / (((3 * volume) / (4000 * math.pi) - 1) ** coord)
-			f0 *= float(math.factorial(N - 1) / (math.factorial(coord) * math.factorial(N - coord - 1)))
+			if self.refstate:
+				N = len(protein.aminoacids)
+				f0 = ((1 - (4000 * math.pi) / (3 * volume)) ** (N - 1)) / (((3 * volume) / (4000 * math.pi) - 1) ** coord)
+				f0 *= float(math.factorial(N - 1) / (math.factorial(coord) * math.factorial(N - coord - 1)))
+			else:
+				f0 = self.median_frequencies[tag]
 			if f <= 0: f = 0.01
 			subscore = -math.log(f / f0)
 			score += subscore

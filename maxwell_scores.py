@@ -9,7 +9,7 @@ def fit_maxwell(input):
 	data = []
 	with open(input) as file:
 		for line in file:
-			data.append(-float(line.strip()))
+			data.append(float(line.strip()))
 	#total = sum(data)
 	#data = [d / total for d in data]
 	#print data

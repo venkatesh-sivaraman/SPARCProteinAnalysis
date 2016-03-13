@@ -14,7 +14,7 @@ import random
 import shutil
 import numpy
 
-def run_charmm(pdbpath, mdpfile="../default.mdp", minimize=False, pairwise=False, bonded=True, solvate=False):
+def run_charmm(pdbpath, mdpfile="../default.mdp", minimize=False, pairwise=False, bonded=True, solvate=False, gromos=False):
 	"""Returns the CHARMM score of a protein located at pdbpath. The mdpfile is a parameter file needed for GROMACS to perform its preprocessing. The default is a file called default.mdp located in the directory outside the temp directory in which the pdb file is located.
 		If minimize is True, a short MD simulation will be performed to minimize the energy. The resulting structure is deposited in the same directory as pdbpath, with filename final.pdb.
 		Pairwise must be specified for the correct energy terms to be selected out of the gmx energy command.
@@ -29,7 +29,10 @@ def run_charmm(pdbpath, mdpfile="../default.mdp", minimize=False, pairwise=False
 				water_model = "spc"
 			else:
 				water_model = "none"
-			cmd1 = "rm \\#*\\#; gmx pdb2gmx -f " + os.path.basename(pdbpath) + " -ff charmm27 -water " + water_model + " -ignh"
+			ff = "charmm27"
+			if gromos:
+				ff = "gromos54a7"
+			cmd1 = "rm \\#*\\#; gmx pdb2gmx -f " + os.path.basename(pdbpath) + " -ff " + ff + " -water " + water_model + " -ignh"
 			out = subprocess.check_output(cmd1, shell=True, stderr=fnull)
 			
 			#Then, edit the configuration to create a box
@@ -65,12 +68,15 @@ def run_charmm(pdbpath, mdpfile="../default.mdp", minimize=False, pairwise=False
 			if bonded:
 				elements = "1 2 3 4"
 			else:
-				elements = "6 7"
+				if gromos: elements = "5 6"
+				else: elements = "6 7"
 			if pairwise:
 				cmd5 = "echo \"" + elements + " 9\n\n\" | gmx energy -f em.edr -s topol.tpr"
 			else:
-				cmd5 = "echo \"" + elements + " 10\n\n\" | gmx energy -f em.edr -s topol.tpr"
-			out = subprocess.check_output(cmd5, shell=True, stderr=fnull)
+				addl = " 10"
+				if gromos: addl = " 9"
+				cmd5 = "echo \"" + elements + addl + "\n\n\" | gmx energy -f em.edr -s topol.tpr"
+			out = subprocess.check_output(cmd5, shell=True)
 	except Exception as e:
 		print "Exception", e
 		return None
@@ -78,6 +84,7 @@ def run_charmm(pdbpath, mdpfile="../default.mdp", minimize=False, pairwise=False
 	os.chdir(origWD) # get back to our original working directory
 		
 	gc.collect()
+	print out
 	if bonded and "Bond" in out:
 		#Interpret the data and send it back
 		lines = out[out.find("Bond"):].split("\n")
@@ -106,7 +113,7 @@ def run_charmm(pdbpath, mdpfile="../default.mdp", minimize=False, pairwise=False
 	else:
 		return None
 
-def charmm_score(peptide, protpath, mdpfile="../default.mdp", aatags=[], minimize=False, pairwise=False, bonded=True, solvate=False):
+def charmm_score(peptide, protpath, mdpfile="../default.mdp", aatags=[], minimize=False, pairwise=False, bonded=True, solvate=False, gromos=False):
 	"""Obtains the bond and total CHARMM scores for the protein specified by peptide. Pass in an array of tag numbers to specify certain amino acids."""
 	if len(aatags):
 		newpeptide = Polypeptide(preaas=[peptide.aminoacids[i] for i in aatags])
@@ -116,7 +123,7 @@ def charmm_score(peptide, protpath, mdpfile="../default.mdp", aatags=[], minimiz
 		pdb = peptide.pdb()
 	with open(protpath, "w") as file:
 		file.write(pdb)
-	cscores = run_charmm(protpath, mdpfile, minimize, pairwise, bonded, solvate)
+	cscores = run_charmm(protpath, mdpfile, minimize, pairwise, bonded, solvate, gromos)
 	return cscores
 
 
@@ -345,7 +352,7 @@ def protein_protein_energies(pdbfile, distributions, output):
 	orig_dist = 0.0
 	bchain_start = 0
 	for dist in xrange(150):
-		distx = (dist - 75) / 5.0 #5.0 - dist / 5.0
+		distx = 5.0 - dist / 5.0
 		disty = -5.0 + dist / 5.0
 		peptide = Polypeptide()
 		peptide.read(pdbfile, otheratoms=True)
@@ -356,13 +363,14 @@ def protein_protein_energies(pdbfile, distributions, output):
 				bchain_start = i + 1
 				continue
 			if inbchain:
-				peptide.aminoacids[i].acarbon = peptide.aminoacids[i].acarbon.add(Point3D(0.0, distx, 0.0))
+				peptide.aminoacids[i].acarbon = peptide.aminoacids[i].acarbon.add(Point3D(0.0, distx, disty))
 				if i == bchain_start:
 					orig_dist = peptide.aminoacids[i - 1].acarbon.distanceto(peptide.aminoacids[i].acarbon)
-		cscore = charmm_score(peptide, protpath, minimize=True, mdpfile="../default.mdp", bonded=False)
+		cscore = charmm_score(peptide, protpath, mdpfile="../default.mdp", minimize=True, bonded=False, gromos=True)
 		if not cscore: continue
-		newpeptide = Polypeptide()
-		newpeptide.read(os.path.join(tmpdir, "final.pdb"))
+		#newpeptide = Polypeptide()
+		#newpeptide.read(os.path.join(tmpdir, "final.pdb"))
+		newpeptide = peptide
 		new_dist = newpeptide.aminoacids[bchain_start - 1].acarbon.distanceto(newpeptide.aminoacids[bchain_start].acarbon)
 		print new_dist, cscore
 		spscores = [dist.score(newpeptide, newpeptide.aminoacids) for dist in distributions]
@@ -404,12 +412,8 @@ def file_compare_charmm_sparc(input, distributions):
 	shutil.rmtree(tmpdir)
 
 
-def batch_compare_charmm_sparc(input, sparc_location, output):
+def batch_compare_charmm_sparc(input, dists, output):
 	"""This method goes through ALL structure files in input and calculates the CHARMM and SPARC scores for them, depositing the results in a text file located at output."""
-	#Load SPARC distribution
-	sparc = SPARCBasicDistributionManager(os.path.join(sparc_location, "consec"), True)
-	sparc_nc = SPARCBasicDistributionManager(os.path.join(sparc_location, "nonconsec"), False)
-	sparc_m = MediumDistributionManager(os.path.join(sparc_location, "medium"))
 	tmpdir = os.path.join(os.path.dirname(output), "sp_tmp")
 	if not os.path.exists(tmpdir): os.mkdir(tmpdir)
 	protpath = os.path.join(tmpdir, "prot.pdb")
@@ -418,8 +422,7 @@ def batch_compare_charmm_sparc(input, sparc_location, output):
 		if not os.path.isdir(os.path.join(input, dir)): continue
 		paths = os.listdir(os.path.join(input, dir))
 		for path in paths:
-			if ".pdb" not in path: continue
-			if random.uniform(0.0, 1.0) > 100.0 / len(paths): continue
+			if ".pdb" not in path and "T" not in path: continue
 			print path
 			try:
 				peptide = Polypeptide()
@@ -429,14 +432,16 @@ def batch_compare_charmm_sparc(input, sparc_location, output):
 				if not cscore: continue
 				newpeptide = Polypeptide()
 				newpeptide.read(os.path.join(tmpdir, "final.pdb"))
-				spscore1 = sparc.score(newpeptide, newpeptide.aminoacids)
-				spscore2 = sparc_nc.score(newpeptide, newpeptide.aminoacids)
-				spscore3 = sparc_m.score(newpeptide, newpeptide.aminoacids)
+				spscore = ""
+				scores = [d.score(newpeptide, newpeptide.aminoacids) for d in dists]
+				for s in scores: spscore += str(s) + ","
 				with open(output, "a") as ofile:
-					ofile.write("{},{},{},{},{},{}\n".format(path, cscore[0], cscore[1], spscore1, spscore2, spscore3))
+					ofile.write("{},{},{},{}\n".format(path, cscore[0], cscore[1], spscore[:-1]))
+				del newpeptide.aminoacids[:]
+				del peptide.aminoacids[:]
 				del newpeptide
 				del peptide
-				del spscore1, spscore2, spscore3, cscore
+				del spscore, scores
 			except:
 				print "Exception with the entire process for this path."
 			gc.collect()

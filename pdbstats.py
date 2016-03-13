@@ -602,7 +602,7 @@ def sparc_score_sequences(pdb_path, output, distributions, stop_pt=None, charmm_
 
 	for pdbid in pdbids:
 		pdbid = pdbid.strip()
-		if random.randint(0, 100) < 70: continue
+		if random.randint(0, 100) < 80: continue
 		print "Processing " + pdbid + "..."
 		try:
 			response = urllib2.urlopen('http://www.rcsb.org/pdb/files/' + pdbid + '.pdb')
@@ -619,9 +619,11 @@ def sparc_score_sequences(pdb_path, output, distributions, stop_pt=None, charmm_
 			length = min(len(peptide.aminoacids), i + length) - i
 			try:
 				print "Evaluating segment", i, "-", i + length
-				scores = [d.score(peptide, peptide.aminoacids[i:i + length]) for d in distributions]
+				scores = [d.score(peptide, peptide.aminoacids[i:i + length], isolate=True) for d in distributions]
 				if charmm_scores == True:
-					cscores = charmm_score(peptide, os.path.join(tmpdir, "sequence.pdb"), mdpfile="../../default_nonminimized.mdp")
+					npeptide = Polypeptide()
+					npeptide.add_aas(peptide.aminoacids[i:i + length])
+					cscores = charmm_score(npeptide, os.path.join(tmpdir, "sequence.pdb"), mdpfile="../../default_nonminimized.mdp")
 					for c in cscores:
 						scores.append(c)
 				with open(output, "a") as file:

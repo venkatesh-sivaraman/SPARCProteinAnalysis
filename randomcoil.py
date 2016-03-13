@@ -54,10 +54,9 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 					if permissions == None:
 						current_pt = last_aa.toglobal(Point3D(random.uniform(3.0, 3.5), random.uniform(bondangle - 0.2, bondangle + 0.2), random.uniform(bondangle - 0.2, bondangle + 0.2)).tocartesian())
 					else:
-						print aminoacid, last_aa, second_last_aa
 						candidates = permissions.allowed_conformations(aminoacid, last_aa, opposite_aa=second_last_aa)
 						if not len(candidates):
-							print "No permissible candidates"
+							print "No permissible candidates", aminoacid, last_aa, second_last_aa
 							continue
 						zone = random.choice(candidates)
 						current_pt = zone.alpha_zone

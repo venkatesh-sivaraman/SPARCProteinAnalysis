@@ -182,7 +182,8 @@ class AAPermissionsManager(PermissionsManager):
 				if (retro_zone.y <= 0.0 and prior == False) or (retro_zone.y > 0.0 and prior == True):
 					continue
 				axes = aminoacid.axes_for_zone(alpha_zone, retro_zone)
-				if not axes: continue
+				if not axes:
+					continue
 				hypo = aminoacid.hypothetical(PositionZone(alocation, axes[0], axes[1], axes[2]), True)
 				if (prior == True and not self.is_valid(hypo, reference_aa)) or (prior == False and not self.is_valid(hypo, reference_aa, prior)):
 					continue

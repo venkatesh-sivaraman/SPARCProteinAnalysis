@@ -1464,9 +1464,12 @@ def sparc_scores_file(input, dists, bounds=None, retbounds=False, ignored_aas=No
 	else:
 		return ret
 
-def _weight_data(input, weights):
+def _weight_data(input, weights, start=0, basename=None):
 	best_combo = 100000000
 	best_nm = None
+	native = 0.0
+	nonnative = []
+	scores = []
 	with open(input, 'r') as file:
 		for line in file:
 			if ";" not in line: continue
@@ -1476,11 +1479,23 @@ def _weight_data(input, weights):
 			comps = line[line.find(";") + 1:].split(",")
 			score = 0.0
 			for i, w in enumerate(weights):
-				score += float(comps[i]) * w
+				if type(start) is list:
+					score += float(comps[start[i]]) * w
+				else:
+					score += float(comps[i + start]) * w
 			if score < best_combo:
 				best_combo = score
 				best_nm = nm
-	return best_nm
+			if basename and (nm == basename or nm == basename + "_orig"):
+				native = score
+			else:
+				nonnative.append(score)
+			scores.append((nm, score))
+	scores = sorted(scores, key=lambda x: x[1])
+	native_rank = next((i for i in xrange(len(scores)) if basename and (scores[i][0] == basename or scores[i][0] == basename + "_orig")), 0)
+	stdev = numpy.std(nonnative)
+	mean = sum(nonnative) / float(len(nonnative))
+	return (best_nm, float(native - mean) / stdev, native_rank)
 
 def _all_weight_data(input, weights):
 	scores = {}
@@ -1498,7 +1513,7 @@ def _all_weight_data(input, weights):
 	return scores
 
 
-def best_weights(input, numweights=4):
+def best_weights(input, numweights=4, start=0):
 	"""This function determines which set of integer weights maximizes the number of correct guesses for the native structure. Correctness is determined by the filename being equivalent to the structure chosen."""
 	weights = []
 	def genweights(levels, min, max):
@@ -1509,37 +1524,46 @@ def best_weights(input, numweights=4):
 				for i in xrange(min, max): yield w + [i]
 	for weightlist in genweights(numweights, 1, 6):
 		weights.append(weightlist)
+	if numweights == 4: weights = [[4, 1, 4, 5]]
 	maxcorrect = 0
 	maxweights = []
 	max_z = -100000
+	print os.listdir(input)
 	for w in weights:
 		correct = 0
+		zscores = []
 		for path in os.listdir(input):
 			if os.path.isdir(os.path.join(input, path)):
 				for subpath in os.listdir(os.path.join(input, path)):
 					if ".txt" not in subpath: continue
-					native_guess = _weight_data(os.path.join(input, path, subpath), w)
+					native_guess, z, rank = _weight_data(os.path.join(input, path, subpath), w, start=start)
 					if native_guess == subpath[:subpath.find(".txt")]:
 						correct += 1
+					zscores.append(z)
 					#print subpath[:subpath.find(".txt")], native_guess
 				continue
 			if ".txt" not in path: continue
-			native_guess = _weight_data(os.path.join(input, path), w)
+			native_guess, z, rank = _weight_data(os.path.join(input, path), w, start=start, basename=path[:path.find(".txt")])
 			if native_guess == path[:path.find(".txt")] or native_guess == path[:path.find(".txt")] + "_orig":
 				correct += 1
+			zscores.append(z)
+			print rank
 			#print path[:path.find(".txt")], native_guess
-		print str(w) + "\t" + str(correct)
+		print str(w) + "\t" + str(correct) + "\t" + str(sum(zscores) / float(len(zscores)))
 		if correct > maxcorrect:
 			maxcorrect = correct
 			maxweights = [w]
-			#if correct == 54:
-			#	max_z = z_score(input, w)[2]
-		'''elif correct == maxcorrect:
-			z = z_score(input, w)[2]
+			for z in zscores:
+				print z
+			max_z = sum(zscores) / float(len(zscores))
+		elif correct == maxcorrect:
+			z = sum(zscores) / float(len(zscores))
 			if z < max_z:
+				for z in zscores:
+					print z
 				max_z = z
 				maxcorrect = correct
-				maxweights = [w]'''
+				maxweights = [w]
 	print "Final: the combos", maxweights, "had a total of", maxcorrect, "correct guesses, with z score", max_z
 
 def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4):
@@ -1783,13 +1807,16 @@ def link_decoy_rmsd(energy_files, rmsd_files, weights):
 					print str(energies[nm]) + "\t" + str(rmsd)
 		gc.collect()
 
-def min_rmsd(input, original_structure, dists=None):
+def min_rmsd(input, original_structure, dists=None, sec_structs=None):
 	'''If you pass dists, the SPARC score will be logged next to the rmsd.'''
 	tmpdir = os.path.join(os.path.dirname(input), "sp_tmp")
 	if os.path.exists(tmpdir): shutil.rmtree(tmpdir)
 	os.mkdir(tmpdir)
 	min_rmsd = 100000
 	min_model = 0
+	rmsd_sparc = []
+	min_sparc = 0.0
+	peptide = Polypeptide()
 	with open(input, "r") as file:
 		next_pdb = ""
 		modelno = 0
@@ -1803,21 +1830,44 @@ def min_rmsd(input, original_structure, dists=None):
 				rmsd = calc_rmsd(original_structure, os.path.join(tmpdir, "model.pdb"), tmpdir)
 				if rmsd > 10000: continue
 				if dists:
-					peptide = Polypeptide()
-					peptide.read(os.path.join(tmpdir, "model.pdb"))
-					print modelno, sum(d.score(peptide, peptide.aminoacids) for d in dists), rmsd
+					try:
+						peptide.read(os.path.join(tmpdir, "model.pdb"))
+					except:
+						next_pdb = ""
+						del peptide.aminoacids[:]
+						peptide.hashtable.clear()
+						continue
+					if sec_structs:
+						if ',' in sec_structs:
+							peptide.add_secondary_structures(sec_structs, format='csv')
+						else:
+							peptide.add_secondary_structures(sec_structs, format='pdb')
+					sp_score = sum(d.score(peptide, peptide.aminoacids) for d in dists)
+					print str(modelno) + "\t" + str(sp_score) + "\t" + str(rmsd)
+					
+					rmsd_sparc.append((sp_score, rmsd))
+					if rmsd < min_rmsd:
+						min_sparc = sp_score
 					del peptide.aminoacids[:]
-					peptide.hashtable = None
-					peptide = None
-				else:
-					print modelno, rmsd
+					peptide.hashtable.clear()
+				#else:
+				#print modelno, rmsd
 				next_pdb = ""
 				if rmsd < min_rmsd:
 					min_rmsd = rmsd
 					min_model = modelno
-	print "min:", min_model, min_rmsd
 	shutil.rmtree(tmpdir)
-	return min_rmsd
+	if len(rmsd_sparc):
+		rank = len([x for x in rmsd_sparc if x[0] <= min_sparc])
+		best_items = sorted(rmsd_sparc, key=lambda x: x[0])[:25]
+		avg = sum(x[1] for x in best_items) / float(len(best_items))
+		maximum = max(x[1] for x in best_items)
+		minimum = min(x[1] for x in best_items)
+		print "MIN:", min_model, min_rmsd, ". Rank among structures:", rank, minimum, maximum, avg
+		return (min_rmsd, min_sparc, sum(x[0] for x in rmsd_sparc) / float(len(rmsd_sparc)), rank, minimum, maximum, avg)
+	else:
+		print "min:", min_model, min_rmsd
+		return min_rmsd
 
 def sum_squared_difference(input):
 	points = []
@@ -1859,6 +1909,7 @@ def score_structure_file(input, dists):
 				peptide = None
 				next_pdb = []
 	print "\n"
+
 
 #MARK: Miscellaneous
 

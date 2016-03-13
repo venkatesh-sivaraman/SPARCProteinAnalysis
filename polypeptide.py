@@ -3,7 +3,8 @@ from aminoacids import *
 from randomcoil import *
 from secondary_structure import *
 import os.path
-import string
+import string, resource
+import gc
 
 class Polypeptide(object):
 	'Represents a series of amino acids and provides for input from a file and further manipulation.'
@@ -145,7 +146,7 @@ class Polypeptide(object):
 			aa.nitrogen = aa.nitrogen.subtract(center)
 			aa.carbon = aa.carbon.subtract(center)
 
-	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False):
+	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, cache_aas=None):
 		"""Pass in a file or file-like object to read. Set checkgaps to True to return a list of missing amino acid indices (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
 		gaps = []
 		current_aa = None
@@ -221,14 +222,22 @@ class Polypeptide(object):
 					self.aminoacids.pop()
 				assert current_aa is None or current_aa.carbon != Point3D.zero() or current_aa.nitrogen != Point3D.zero(), "Cannot have an amino acid with no carbon or nitrogen location: %r" % current_aa
 				if current_aa:
+					#mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 					current_aa.compute_coordinate_system_vectors()
+					#print "Mem check 2:", resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - mem
+					#mem = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 					if current_aa.i == Point3D.zero() and len(self.aminoacids) > 0:
 						self.aminoacids.pop()
 						if fillgaps:
 							self.aminoacids.append(None)
-				current_aa = AminoAcid(line[17:20], current_tag)
+				if cache_aas:
+					current_aa = cache_aas[0]
+					del cache_aas[0]
+					current_aa.type = line[17:20]
+					current_aa.tag = current_tag
+				else:
+					current_aa = AminoAcid(line[17:20], current_tag)
 				self.aminoacids.append(current_aa)
-	
 	
 			atom_code = line[13:17]
 			replaced = atom_code.replace(" ", "")
@@ -245,11 +254,14 @@ class Polypeptide(object):
 				current_aa.nitrogen = location
 			elif otheratoms and atom_code[-1] != "B" and atom_code[0] != "H" and line[12] != "H" and replaced != "OXT":
 				current_aa.add_other_atom(atom_code.split()[0], location)
-			
+		
 		if current_aa is not None and current_aa.acarbon == Point3D.zero() and len(self.aminoacids) > 0:
 			self.aminoacids.pop()
-		
-		self.hashtable = AAHashTable()
+
+		if self.hashtable:
+			self.hashtable.clear()
+		else:
+			self.hashtable = AAHashTable()
 		self.mass = 0.0
 		for aa in self.aminoacids:
 			if aa:
@@ -287,7 +299,7 @@ class Polypeptide(object):
 					self.secondary_structures.append(Helix(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1])))
 				elif comps[0].lower() == 'sheet':
 					if int(comps[1]) == 0:
-						if current_sheet: self.secondary_structures.append(sheet)
+						if current_sheet: self.secondary_structures.append(current_sheet)
 						current_sheet = Sheet(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1]))
 					else:
 						current_sheet.add_strand(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1]))

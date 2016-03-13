@@ -51,6 +51,7 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		else:
 			self.type = frequency_nonconsec_disttype
 		self.defaultvalue = 0
+		self.refstate = False
 
 	def __repr__(self):
 		return "<Distribution Manager for '{}' data>".format(self.identifier)
@@ -58,13 +59,13 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 	def alpha_frequency(self, type1, type2, zone):
 		"""This helper function retrieves the frequency of 'zone' in the loaded frequency data. type1 refers to the type (code) of the amino acid that serves as the origin of the zone space, while type2 is the amino acid to which the zone refers."""
 		if zone in self.alpha_frequencies:
-			if self.reference_frequencies:
+			'''if self.reference_frequencies:
 				ref_zone = zone
 				if ref_zone.x < 0.0: ref_zone.x = -ref_zone.x - 1.0
 				if ref_zone.y < 0.0: ref_zone.y = -ref_zone.y - 1.0
 				if ref_zone.z < 0.0: ref_zone.z = -ref_zone.z - 1.0
 				if ref_zone in self.reference_frequencies:
-					return (self.alpha_frequencies[zone][type1][type2], self.reference_frequencies[ref_zone][type1][type2])
+					return (self.alpha_frequencies[zone][type1][type2], self.reference_frequencies[ref_zone][type1][type2])'''
 			return self.alpha_frequencies[zone][type1][type2]
 		else:
 			return 0
@@ -102,26 +103,38 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 				if tag1 >= AMINO_ACID_COUNT: tag1 = 0
 				if tag2 >= AMINO_ACID_COUNT: tag2 = 0
 				
-				zone = aa2.tolocal(aa.acarbon).floor()
-				subscore = self.alpha_frequency(tag2, tag1, zone)
-				if subscore == 0:
-					if consec == 0:	subscore = 1e-3
-					else:			subscore = 1e-2
-				subscore = -math.log(subscore / self.median_frequencies[tag2][tag1] * self.total_interactions[tag2][tag1] / self.total_median)
-				zone2 = aa.tolocal(aa2.acarbon).floor()
-				subscore2 = self.alpha_frequency(tag1, tag2, zone2)
-				if subscore2 == 0:
-					if consec == 0:	subscore2 = 1e-3
-					else:			subscore2 = 1e-2
-				subscore2 = -math.log(subscore2 / self.median_frequencies[tag1][tag2] * self.total_interactions[tag1][tag2] / self.total_median)
-				'''if self.short_range == 1:
-					if self.alpha_frequency(tag2, tag1, zone) == 0 or self.alpha_frequency(tag1, tag2, zone2) == 0:
-						print "SR1:", aa2.tag - aa.tag, zone, self.alpha_frequency(tag2, tag1, zone), subscore
-						print "SR2:", aa2.tag - aa.tag, zone2, self.alpha_frequency(tag1, tag2, zone2), subscore2'''
-				score += subscore + subscore2
-				if onlyone:
-					print subscore, subscore2
-					return (subscore * self.weight, subscore2 * self.weight, self.total_interactions[tag1][tag2], self.total_interactions[tag2][tag1])
+				if self.refstate:
+					zone = aa2.tolocal(aa.acarbon).floor()
+					subscore = self.alpha_frequency(tag2, tag1, zone)
+					if subscore == 0:
+						if consec == 0:	subscore = 1e-3
+						else:			subscore = 1e-2
+					zone = aa.tolocal(aa2.acarbon).floor()
+					subscore2 = self.alpha_frequency(tag1, tag2, zone)
+					if subscore2 == 0:
+						if consec == 0:	subscore2 = 1e-3
+						else:			subscore2 = 1e-2
+					score += -math.log((subscore * subscore2 / (self.total_interactions[tag2][tag1] ** 2)) / reference_state.position_ref(zone))
+					if onlyone:
+						print subscore, subscore2
+						return (subscore * self.weight, subscore2 * self.weight, self.total_interactions[tag1][tag2], self.total_interactions[tag2][tag1])
+				else:
+					zone = aa2.tolocal(aa.acarbon).floor()
+					subscore = self.alpha_frequency(tag2, tag1, zone)
+					if subscore == 0:
+						if consec == 0:	subscore = 1e-3
+						else:			subscore = 1e-2
+					subscore = -math.log(subscore / self.median_frequencies[tag2][tag1] * self.total_interactions[tag2][tag1] / self.total_median)
+					zone2 = aa.tolocal(aa2.acarbon).floor()
+					subscore2 = self.alpha_frequency(tag1, tag2, zone2)
+					if subscore2 == 0:
+						if consec == 0:	subscore2 = 1e-3
+						else:			subscore2 = 1e-2
+					subscore2 = -math.log(subscore2 / self.median_frequencies[tag1][tag2] * self.total_interactions[tag1][tag2] / self.total_median)
+					score += subscore + subscore2
+					if onlyone:
+						print subscore, subscore2
+						return (subscore * self.weight, subscore2 * self.weight, self.total_interactions[tag1][tag2], self.total_interactions[tag2][tag1])
 				if aa.tag in taglist:
 					taglist[aa.tag].append(aa2.tag)
 				else:
@@ -212,6 +225,7 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 		self.weight = 1.0
 		self.type = frequency_consec_disttype
 		self.defaultvalue = 0
+		self.refstate = False
 	
 	def alpha_frequency(self, sec_struct_id, zone):
 		"""This helper function retrieves the frequency of 'zone' in the loaded frequency data. sec_struct_id is the string, which is also a key in the data (e.g. "helix1", "sheet0")."""
@@ -251,20 +265,39 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 				if tag1 >= AMINO_ACID_COUNT: tag1 = 0
 				if tag2 >= AMINO_ACID_COUNT: tag2 = 0
 				
-				zone = aa2.tolocal(aa.acarbon).floor()
-				subscore = self.alpha_frequency(sec_struct_type, zone)
-				if subscore == 0:
-					subscore = 0.001
-				subscore = -math.log(subscore / self.median_frequencies[sec_struct_type] * self.total_interactions[sec_struct_type] / self.total_median)
-				zone = aa.tolocal(aa2.acarbon).floor()
-				subscore2 = self.alpha_frequency(sec_struct_type, zone)
-				if subscore2 == 0:
-					subscore2 = 0.001
-				subscore2 = -math.log(subscore2 / self.median_frequencies[sec_struct_type] * self.total_interactions[sec_struct_type] / self.total_median)
-				score += subscore + subscore2
-				if onlyone:
-					print subscore, subscore2
-					return (subscore * self.weight, subscore2 * self.weight, self.total_interactions[sec_struct_type], self.total_interactions[sec_struct_type])
+				if self.refstate == True:
+					zone = aa2.tolocal(aa.acarbon).floor()
+					subscore = self.alpha_frequency(sec_struct_type, zone)
+					if subscore == 0:
+						if consec == 0:	subscore = 1e-3
+						else:			subscore = 1e-2
+					zone2 = aa.tolocal(aa2.acarbon).floor()
+					subscore2 = self.alpha_frequency(sec_struct_type, zone2)
+					if subscore2 == 0:
+						if consec == 0:	subscore2 = 1e-3
+						else:			subscore2 = 1e-2
+					subscore = -math.log((subscore * subscore2 / self.total_interactions[sec_struct_type] ** 2) / reference_state.position_ref(zone))
+					score += subscore
+					if onlyone:
+						print subscore
+						return (subscore * self.weight, subscore * self.weight, self.total_interactions[sec_struct_type], self.total_interactions[sec_struct_type])
+				else:
+					zone = aa2.tolocal(aa.acarbon).floor()
+					subscore = self.alpha_frequency(sec_struct_type, zone)
+					if subscore == 0:
+						if consec == 0:	subscore = 1e-3
+						else:			subscore = 1e-2
+					subscore = -math.log(subscore / self.median_frequencies[sec_struct_type] * self.total_interactions[sec_struct_type] / self.total_median)
+					zone = aa.tolocal(aa2.acarbon).floor()
+					subscore2 = self.alpha_frequency(sec_struct_type, zone)
+					if subscore2 == 0:
+						if consec == 0:	subscore2 = 1e-3
+						else:			subscore2 = 1e-2
+					subscore2 = -math.log(subscore2 / self.median_frequencies[sec_struct_type] * self.total_interactions[sec_struct_type] / self.total_median)
+					score += subscore + subscore2
+					if onlyone:
+						print subscore, subscore2
+						return (subscore * self.weight, subscore2 * self.weight, self.total_interactions[sec_struct_type], self.total_interactions[sec_struct_type])
 				if aa.tag in taglist:
 					taglist[aa.tag].append(aa2.tag)
 				else:

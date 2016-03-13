@@ -1,4 +1,5 @@
 from proteinmath import *
+import resource
 
 AMINO_ACID_COUNT = 22
 
@@ -654,6 +655,12 @@ class AAHashTable(object):
 			for aa in b:
 				aa.remove_observer("acarbon", self.update_aa)
 		del self.buckets[:]
+
+	def clear(self):
+		for b in self.buckets:
+			for aa in b:
+				aa.remove_observer("acarbon", self.update_aa)
+			del b[:]
 	
 	def update_aa(self, aa, key, old):
 		if key != "acarbon": return

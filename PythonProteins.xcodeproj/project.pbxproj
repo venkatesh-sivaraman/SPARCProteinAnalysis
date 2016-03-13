@@ -25,12 +25,13 @@
 		9652F92C1A3E324600A37E22 /* generic_distributions.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = generic_distributions.py; sourceTree = "<group>"; };
 		965383541BE1BD0B0064894B /* charmm.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = charmm.py; sourceTree = "<group>"; };
 		9655187D1A2B950100775578 /* proteinmath.pyx */ = {isa = PBXFileReference; explicitFileType = text.script.python; fileEncoding = 4; path = proteinmath.pyx; sourceTree = "<group>"; usesTabs = 1; };
-		9655187E1A2B97A200775578 /* aminoacids.py */ = {isa = PBXFileReference; explicitFileType = text.script.python; fileEncoding = 4; path = aminoacids.py; sourceTree = "<group>"; };
+		9655187E1A2B97A200775578 /* aminoacids.pyx */ = {isa = PBXFileReference; explicitFileType = text.script.python; fileEncoding = 4; path = aminoacids.pyx; sourceTree = "<group>"; };
 		9655187F1A2B9C3E00775578 /* polypeptide.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = polypeptide.py; sourceTree = "<group>"; };
 		965518801A2BE68500775578 /* pdbstats.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = pdbstats.py; sourceTree = "<group>"; };
 		96668AE91C756451009530A2 /* maxwell_scores.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = maxwell_scores.py; sourceTree = "<group>"; };
 		967CDE1B1A1A556500E7C822 /* folding_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = folding_1.py; sourceTree = "<group>"; };
 		969A68391C83BA090012D6FF /* setup.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = setup.py; sourceTree = "<group>"; };
+		969D350E1C92E962000889F4 /* goap.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = goap.py; sourceTree = "<group>"; };
 		96A448A319C3A80200C4991A /* main.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = main.py; sourceTree = "<group>"; };
 		96A448A419C3AA8600C4991A /* proteinmath_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = proteinmath_1.py; sourceTree = "<group>"; };
 		96A448A519C3EADF00C4991A /* aminoacids_1.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = aminoacids_1.py; sourceTree = "<group>"; };
@@ -40,6 +41,7 @@
 		96D2926D1C5B124C002E842F /* secondary_structure.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = secondary_structure.py; sourceTree = "<group>"; };
 		96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = sparc_distribution.py; sourceTree = "<group>"; };
 		96E3E17C1C6D8B2B00A22AF3 /* reference_state.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = reference_state.py; sourceTree = "<group>"; };
+		96EF9AC61C91C61800897BB5 /* rwplus.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = rwplus.py; sourceTree = "<group>"; };
 		96FD853E1C797FCF0023C712 /* simulation_daemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = simulation_daemon.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -70,7 +72,7 @@
 		963ED0231A55ABA4005F0079 /* Model Objects */ = {
 			isa = PBXGroup;
 			children = (
-				9655187E1A2B97A200775578 /* aminoacids.py */,
+				9655187E1A2B97A200775578 /* aminoacids.pyx */,
 				9655187F1A2B9C3E00775578 /* polypeptide.py */,
 				96D2926D1C5B124C002E842F /* secondary_structure.py */,
 			);
@@ -117,6 +119,8 @@
 			children = (
 				9652F9221A3DF1F600A37E22 /* ProteinViewer.xcodeproj */,
 				96A448A319C3A80200C4991A /* main.py */,
+				96EF9AC61C91C61800897BB5 /* rwplus.py */,
+				969D350E1C92E962000889F4 /* goap.py */,
 				96FD853E1C797FCF0023C712 /* simulation_daemon.plist */,
 				960874411A62E96B00E1AD9A /* background_process.py */,
 				96AA06371A9D79DF00340A38 /* decoy_helpers.py */,

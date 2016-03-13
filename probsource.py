@@ -10,6 +10,8 @@ from randomcoil import random_axes
 import random
 import datetime
 import distributions
+from memory_profiler import profile
+import resource
 
 #MARK: Helper functions
 
@@ -658,35 +660,73 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 		#These are lists of tuples: (list of position zones, SPARC score).
 		self.c1_conformations = []
 		self.c2_conformations = []
-
-	def load_cluster_conformations(self, cluster_num, path):
+	
+	def load_cluster_conformations(self, cluster_num, path, n=25):
 		'''This new function loads the conformations for one of the segments of the simulation. If the SPARC scores are stored in the comment lines of the multi-model PDB file you pass in at path, they will be read in with the format "SPARC xxxx". Otherwise, the SPARC scores will be computed within this method.'''
 		confs = []
+
 		with open(path, 'r') as file:
 			lines = file.readlines()
 			last_read = 0
 			curr_score = 0.0
-			peptide = Polypeptide()
+			peptide = None
+			cache = None
+			modelno = 0
 			for i, l in enumerate(lines):
 				if "SPARC" in l:
 					curr_score = float(l.split()[1])
-				if "ENDMDL" in l:
-					peptide.read_file(lines[last_read : i + 1])
+				elif "MODEL" in l:
+					modelno = int(l[5:].strip())
+				elif "ENDMDL" in l:
+					if not peptide:
+						peptide = Polypeptide()
+					try:
+						peptide.read_file(lines[last_read : i + 1], cache_aas=cache)
+					except AssertionError as e:
+						print "Assertion for model {}: {}".format(i, e)
+						curr_score = 0.0
+						last_read = i + 1
+						del peptide.aminoacids[:]
+						peptide.hashtable = None
+						continue
 					if curr_score == 0.0:
 						curr_score = sum(d.score(peptide, peptide.aminoacids) for d in self.distributions)
-					confs.append(([aa.pz_representation() for aa in peptide.aminoacids], curr_score, score_to_probability(curr_score)))
+					confs.append([modelno, curr_score, score_to_probability(curr_score)])
 					if len(confs) % 50 == 0:
 						print "Loaded", len(confs), "conformations..."
 					curr_score = 0.0
 					last_read = i + 1
-					del peptide.aminoacids[:]
-					peptide.hashtable = None
-		confs = sorted(confs, key=lambda x: x[1])[:int(len(confs) * 0.05)]
-		print "Loaded", len(confs), "conformations for segment", cluster_num
+					cache = peptide.aminoacids
+			confs2 = sorted(confs, key=lambda x: x[1])[:min(int(len(confs) * 0.05), n)]
+			#Go back and read through the file again, saving the conformations that we noted above
+			last_read = 0
+			modelno = 0
+			peptide = None
+			for i, l in enumerate(lines):
+				if "MODEL" in l:
+					modelno = int(l[5:].strip())
+				elif "ENDMDL" in l:
+					idx = next((k for k, x in enumerate(confs2) if x[0] == modelno), -1)
+					if idx >= 0:
+						if not peptide:
+							peptide = Polypeptide()
+						try:
+							peptide.read_file(lines[last_read : i + 1], cache_aas=cache)
+						except AssertionError as e:
+							last_read = i + 1
+							del peptide.aminoacids[:]
+							peptide.hashtable = None
+							continue
+						confs2[idx][0] = [aa.pz_representation() for aa in peptide.aminoacids]
+						cache = peptide.aminoacids
+					last_read = i + 1
+			del lines, cache
+		del confs
+		print "Loaded", len(confs2), "conformations for segment", cluster_num
 		if cluster_num == 1:
-			self.c1_conformations = confs
+			self.c1_conformations = confs2
 		elif cluster_num == 2:
-			self.c2_conformations = confs
+			self.c2_conformations = confs2
 		else:
 			print "AAConstructiveProbabilitySource doesn't support segment number", cluster_num, ". Sorry!"
 
