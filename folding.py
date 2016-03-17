@@ -23,6 +23,7 @@ import os, sys
 import numpy
 import multiprocessing
 from multiprocessing import Process, Queue
+from concurrent.futures import ProcessPoolExecutor
 import datetime, time
 
 #MARK: Helpers
@@ -470,15 +471,15 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 	scores = []
 	print "Preliminary conformation testing..."
 	
-	#queue = Queue()
+	queue = Queue()
 	for i in xrange(len(seg_prob.c1_conformations)):
 		print "Testing c1", i
 		for j in xrange(len(seg_prob.c2_conformations)):
-			'''p = Process(target=test_segment_combo, args=(queue, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0]))
+			p = Process(target=test_segment_combo, args=(queue, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0]))
 			p.start()
 			p.join() # this blocks until the process terminates
-			result = queue.get()'''
-			result = test_segment_combo(None, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0])
+			result = queue.get()
+			#result = test_segment_combo(None, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0])
 			if result != 0:
 				scores.append([i, j, result])
 
@@ -610,7 +611,6 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 		pdb_model_idx += 1'''
 		
 	b = datetime.datetime.now()
-	print "Finished segment fold in {0:.4f} sec.".format((b - a).total_seconds())
 	del peptide.aminoacids[:]
 	peptide = None
 	del scores
@@ -620,6 +620,7 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 	scoresfile.write("\n" + str((b - a).total_seconds()))
 	file.close()
 	scoresfile.close()
+	return outname, (b - a).total_seconds()
 
 
 def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb", sec_structs=None, model_count=5, n=500):
@@ -761,11 +762,11 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 	del peptide.aminoacids[:]
 	peptide = None
 	b = datetime.datetime.now()
-	print "Finished 750 iterations in {0:.4f} sec.".format((b - a).total_seconds() - time_wasted)
 	scoresfile.write("\n" + str((b - a).total_seconds() - time_wasted))
 	file.close()
 	scoresfile.close()
 	gc.collect()
+	return outname, (b - a).total_seconds() - time_wasted
 
 def start_run((run, seq, sec_structs)):
 	assert len(run) >= 2, "Run directive is invalid: {}".format(run)
@@ -828,15 +829,9 @@ def run_simulation(directives, output):
 
 	for i, group in enumerate(run_groups):
 		print "Starting run group", i
-		pool = multiprocessing.Pool(processes=2, maxtasksperchild=1)
-		try:
-			pool.map(start_run, [(run, seq, sec_structs) for run in group])
-		except KeyboardInterrupt:
-			pool.terminate()
-			pool.join()
-		else:
-			pool.close()
-			pool.join()
+		with ProcessPoolExecutor(max_workers=2) as pool:
+			for outname, time in pool.map(start_run, [(run, seq, sec_structs) for run in group]):
+				print "Finished simulation of {} in {} seconds".format(outname, time)
 
 if __name__ == '__main__':
 	args = sys.argv[1:]

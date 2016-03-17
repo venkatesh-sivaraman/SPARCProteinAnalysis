@@ -376,10 +376,10 @@ if __name__ == '__main__':
 			lowest_scores[idx - 1][1] = weights
 			print "New best"
 	print lowest_scores'''
-	mins = []
+	'''mins = []
 	for i in range(1, 9):
 		mins.append(min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/refined-bpti/seg" + str(i) + ".pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/refined-bpti/native_seg" + str(i) + ".pdb"))
-	print mins
+	print mins'''
 	#link_decoy_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd-casp-backbone", [9.0, 4.0, 3.0])
 	#protein_protein_energies("/Users/venkatesh-sivaraman/Downloads/1DUM.pdb", load_dists(secondary=False), "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/magainin_test_yz_gromos.txt")
 	'''basepath = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments"
