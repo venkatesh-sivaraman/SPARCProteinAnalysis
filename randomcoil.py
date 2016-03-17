@@ -59,6 +59,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 						candidates = permissions.allowed_conformations(aminoacid, last_aa, opposite_aa=second_last_aa)
 						if not len(candidates):
 							print "No permissible candidates", aminoacid, last_aa, second_last_aa
+							idx += 1
 							continue
 						zone = random.choice(candidates)
 						current_pt = zone.alpha_zone

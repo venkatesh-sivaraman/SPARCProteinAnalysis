@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		960874411A62E96B00E1AD9A /* background_process.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = background_process.py; sourceTree = "<group>"; };
 		960A23C31A912FF200739447 /* tmscore.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = tmscore.py; sourceTree = "<group>"; };
 		960A23C41A91300E00739447 /* TMscore.jar */ = {isa = PBXFileReference; lastKnownFileType = archive.jar; path = TMscore.jar; sourceTree = "<group>"; };
 		961253651A7EC28400231E37 /* permissions.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = permissions.py; sourceTree = "<group>"; };
@@ -31,6 +30,7 @@
 		969D350E1C92E962000889F4 /* goap.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = goap.py; sourceTree = "<group>"; };
 		96A448A319C3A80200C4991A /* main.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = main.py; sourceTree = "<group>"; };
 		96B6AF041C8A4A100004B68F /* loading_indicator.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = loading_indicator.py; sourceTree = "<group>"; };
+		96CCF6951C9AF9BF00FA2A7C /* gensparc.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = gensparc.py; sourceTree = "<group>"; };
 		96D2926C1C5B0B5F002E842F /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		96D2926D1C5B124C002E842F /* secondary_structure.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = secondary_structure.py; sourceTree = "<group>"; };
 		96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = sparc_distribution.py; sourceTree = "<group>"; };
@@ -40,16 +40,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
-		963ED0211A55AB87005F0079 /* Simulators */ = {
-			isa = PBXGroup;
-			children = (
-				9652F9291A3E261C00A37E22 /* folding.py */,
-				9652F9191A3CAF1500A37E22 /* randomcoil.py */,
-			);
-			name = Simulators;
-			sourceTree = "<group>";
-		};
-		963ED0221A55AB97005F0079 /* Distributions */ = {
+		963ED0221A55AB97005F0079 /* Simulation Tools */ = {
 			isa = PBXGroup;
 			children = (
 				963ED0201A55A9F7005F0079 /* probsource.py */,
@@ -58,8 +49,9 @@
 				96B6AF041C8A4A100004B68F /* loading_indicator.py */,
 				96E3E17C1C6D8B2B00A22AF3 /* reference_state.py */,
 				961253651A7EC28400231E37 /* permissions.py */,
+				9652F9191A3CAF1500A37E22 /* randomcoil.py */,
 			);
-			name = Distributions;
+			name = "Simulation Tools";
 			sourceTree = "<group>";
 		};
 		963ED0231A55ABA4005F0079 /* Model Objects */ = {
@@ -103,14 +95,14 @@
 				9652F9221A3DF1F600A37E22 /* ProteinViewer.xcodeproj */,
 				96A448A319C3A80200C4991A /* main.py */,
 				96582F4B1C99FB1D00A9FB95 /* decoys.py */,
+				96CCF6951C9AF9BF00FA2A7C /* gensparc.py */,
+				9652F9291A3E261C00A37E22 /* folding.py */,
 				96FD853E1C797FCF0023C712 /* simulation_daemon.plist */,
-				960874411A62E96B00E1AD9A /* background_process.py */,
 				9655187D1A2B950100775578 /* proteinmath.pyx */,
 				969A68391C83BA090012D6FF /* setup.py */,
 				96D2926C1C5B0B5F002E842F /* .gitignore */,
 				963ED0231A55ABA4005F0079 /* Model Objects */,
-				963ED0221A55AB97005F0079 /* Distributions */,
-				963ED0211A55AB87005F0079 /* Simulators */,
+				963ED0221A55AB97005F0079 /* Simulation Tools */,
 				963ED0241A55ABB2005F0079 /* Data Analysis */,
 			);
 			sourceTree = "<group>";

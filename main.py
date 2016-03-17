@@ -346,7 +346,7 @@ def aminoacid_type_variation():
 		print "\n"
 
 if __name__ == '__main__':
-	func()
+	#func()
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/tasser", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/tasser-decoys")
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys")
 	#print determine_omits("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/omits.txt")
@@ -376,10 +376,10 @@ if __name__ == '__main__':
 			lowest_scores[idx - 1][1] = weights
 			print "New best"
 	print lowest_scores'''
-	'''mins = []
-	for i in [12, 34, 56, 78, 910, 1234, 5678, 5678910]: #range(1, 11) +
-		mins.append(min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg" + str(i) + ".pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native_seg" + str(i) + ".pdb"))
-	print mins'''
+	mins = []
+	for i in range(1, 9):
+		mins.append(min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/refined-bpti/seg" + str(i) + ".pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/refined-bpti/native_seg" + str(i) + ".pdb"))
+	print mins
 	#link_decoy_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd-casp-backbone", [9.0, 4.0, 3.0])
 	#protein_protein_energies("/Users/venkatesh-sivaraman/Downloads/1DUM.pdb", load_dists(secondary=False), "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/magainin_test_yz_gromos.txt")
 	'''basepath = "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments"
@@ -388,3 +388,11 @@ if __name__ == '__main__':
 		if decoyset[0] == ".": continue
 		if os.path.exists(os.path.join("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/simul", decoyset + ".txt")): continue
 		calculate_tm_scores(os.path.join(basepath, decoyset), os.path.join("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/simul", decoyset + ".txt"), natives=os.path.join(basepath, "native_" + decoyset)) #, natives="/Users/venkatesh-sivaraman/Downloads/casp11.targets_unsplitted.release11242014")'''
+	#batch_compare_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-decoys", dists, "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp_charmm.txt")
+	#score_structure_file("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg12-3.pdb", distributions)
+	#sparc_score_sequences("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/sequence_scores_charmm.txt", dists, charmm_scores=False)
+	'''for x in xrange(1, 4):
+		for y in xrange(1, 4):
+			for z in xrange(1, 4):
+				print "Testing weights", x, y, z
+				func(weights={ "consec": x, "secondary": x, "short-range": y, "nonconsec": 0.0, "medium": z }, base="segment_weight_test_sec/" + str(x) + str(y) + str(z))'''

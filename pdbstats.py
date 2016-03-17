@@ -230,6 +230,15 @@ def block_stats_network(id, pdbids, output, mode='d'):
 				secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
 				secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
 				secondary_struct_sheet + "-1" : {}
+			},
+			"permissible" : {
+				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+				secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+				secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+				secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+				secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+				secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+				secondary_struct_sheet + "-1" : {}, "default": {}, "all": {}
 			}
 		}
 	elif mode == sidechain_mode:
@@ -320,7 +329,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 				for i, aa in enumerate(peptide.aminoacids):
 					if aa == None: continue
 					tag1 = aacode(aa.type)
-					if mode == permissible_sequences_mode or mode == permissible_sequences_ss_mode:
+					if mode == permissible_sequences_mode or mode == permissible_sequences_ss_mode or mode == default_network_mode:
 						if i == 0 or i == len(peptide.aminoacids) - 1: continue
 						
 						#Figure out the orientation pair between the last consecutive residue and this one
@@ -332,19 +341,23 @@ def block_stats_network(id, pdbids, output, mode='d'):
 						sec_struct = peptide.secondary_structure_aa(i)
 						do_next = True
 						do_prev = True
-						if mode == permissible_sequences_ss_mode:
+						if mode == default_network_mode:
+							cover_data = data["permissible"]
+						else:
+							cover_data = data
+						if mode == permissible_sequences_ss_mode or mode == default_network_mode:
 							if sec_struct:
 								if sec_struct[1].start > i - 1: continue
 								if sec_struct[1].start > i - 2: do_prev = False
 								if sec_struct[1].end < i + 1: do_next = False
 								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
-								if sec_name not in data: continue
-								data_lists = [data[sec_name]]
+								if sec_name not in cover_data: continue
+								data_lists = [cover_data[sec_name]]
 							else:
-								data_lists = [data["default"]]
-							data_lists.append(data["all"])
+								data_lists = [cover_data["default"]]
+							data_lists.append(cover_data["all"])
 						else:
-							data_list = [data]
+							data_list = [cover_data]
 						if peptide.aminoacids[i + 1] and do_next:
 							#Figure out the orientations between the next consecutive residue and this one
 							next_zone = aa.aa_position_zone(peptide.aminoacids[i + 1]).alpha_zone
@@ -367,7 +380,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 								else:
 									data_list[(zone1, zone2)][prev_zone] = 1
 				
-					elif mode == default_network_mode:
+					if mode == default_network_mode:
 						#Nonconsec
 						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=False)
 						for aa2 in r:
@@ -413,7 +426,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 							print "Partial omit %r (unknown aa)." % pdbid
 							reported = True
 				
-					elif mode == sidechain_mode:
+					if mode == sidechain_mode:
 						if tag1 >= 22 and not reported:
 							print "Partial omit %r (unknown aa)." % pdbid
 							reported = True
@@ -469,6 +482,18 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			for datum in data["medium"][i]:
 				f.write(str(datum) + '\n')
 			f.close()
+
+		#Permissible sequences
+		permissibles_path = os.path.join(output, "permissible_sequences")
+		if not os.path.exists(permissibles_path): os.mkdir(permissibles_path)
+		for sec_struct_type in data["permissible"]:
+			with open(os.path.join(permissibles_path, sec_struct_type + ".txt"), "w") as file:
+				for zone1, zone2 in data["permissible"][sec_struct_type]:
+					file.write("{}, {}, {}; {}, {}, {}\n".format(zone1.x, zone1.y, zone1.z, zone2.x, zone2.y, zone2.z))
+					for pz, freq in data["permissible"][sec_struct_type][(zone1, zone2)].iteritems():
+						file.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
+					file.write("\n")
+
 	elif mode == permissible_sequences_mode:
 		write_path = join(output, "permissible_sequences.txt")
 		with open(write_path, "w") as file:

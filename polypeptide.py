@@ -302,7 +302,7 @@ class Polypeptide(object):
 				start = int(comps[2]) - 1
 				end = int(comps[3]) - 1
 				if range:
-					if end < range[0] or start > range[1]: continue
+					if end < range[0] - 1 or start > range[1] - 1: continue
 					start = max(0, start - range[0] + 1)
 					end = min(end - range[0] + 1, range[1] - range[0])
 				if comps[0].lower() == 'helix':
@@ -320,7 +320,7 @@ class Polypeptide(object):
 					start_seq = int(line[22:26]) - 1
 					end_seq = int(line[34:38]) - 1
 					if range:
-						if end_seq < range[0] or start_seq > range[1]: continue
+						if end_seq < range[0] - 1 or start_seq > range[1] - 1: continue
 						start_seq = max(0, start_seq - range[0] + 1)
 						end_seq = min(end_seq - range[0] + 1, range[1] - range[0])
 					type = int(line[39:41])
@@ -333,7 +333,7 @@ class Polypeptide(object):
 					start_seq = int(line[23:26]) - 1
 					end_seq = int(line[34:37]) - 1
 					if range:
-						if end_seq < range[0] or start_seq > range[1]: continue
+						if end_seq < range[0] - 1 or start_seq > range[1] - 1: continue
 						start_seq = max(0, start_seq - range[0] + 1)
 						end_seq = min(end_seq - range[0] + 1, range[1] - range[0])
 					chain_start = line[21]

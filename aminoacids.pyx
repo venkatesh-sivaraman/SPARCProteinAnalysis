@@ -524,30 +524,30 @@ class AminoAcid(object):
 		return PositionZone(self.acarbon, self.i, self.j, self.k)
 
 	#MARK: Save/Restore
-	def save(self):
+	def save(self, id):
 		"""This function saves the current location and orientation of the amino acid to the stack."""
 		if not hasattr(self, "_savestack"):
-			self._savestack = []
-		self._savestack.append(self.pz_representation())
+			self._savestack = {}
+		self._savestack[id] = self.pz_representation()
 
-	def restore(self):
-		"""This function restores the last-saved location and orientation. Returns the location and orientation BEFORE the restoration."""
+	def restore(self, id):
+		"""This function restores the location and orientation stored at id. Returns the location and orientation BEFORE the restoration."""
 		if not hasattr(self, "_savestack"): return
 		assert len(self._savestack) > 0, "Nothing to restore"
-		print "Restoring", self.tag
-		loc = self._savestack.pop()
 		curr = self.pz_representation()
-		self.acarbon = loc.alpha_zone
-		self.set_axes(loc.x_axis, loc.y_axis, loc.z_axis)
+		if id in self._savestack:
+			loc = self._savestack[id]
+			self.acarbon = loc.alpha_zone
+			self.set_axes(loc.x_axis, loc.y_axis, loc.z_axis)
 		return curr
 
-	def discard_save(self):
-		"""This function pops the last-saved location without restoring it."""
-		self._savestack.pop()
+	def discard_save(self, id):
+		"""This function pops the location for id without restoring it."""
+		del self._savestack[id]
 
 	def clear_save(self):
 		"""Removes all save caches."""
-		del self._savestack[:]
+		self._savestack.clear()
 
 #MARK: Helpers
 

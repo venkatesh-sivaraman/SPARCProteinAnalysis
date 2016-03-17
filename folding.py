@@ -138,6 +138,8 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		Returns: if no probabilities are found for the wave, returns None. If the conformation has been saved, returns a tuple (min, max) where min is the lowest tag mutated and max is the lowest tag not mutated (e.g., if amino acids 1-3 were mutated, min=1 and max=4."""
 	begin_offset = end_offset = Point3D.zero()
 	
+	save_tag = 1234
+	
 	for i in xrange(len(segment)):
 		#if restore == True: residue.save()
 		residue = protein.aminoacids[i + segment[0].tag]
@@ -157,8 +159,13 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 
 	#Now radiate outward from the selected segment and adjust the neighbor segments' positions.
 	segment_length = 1
-
+	
+	pre_saves = []
 	if segment[0].tag > 0 and not psource.is_connected(segment) and wave != 2:
+		pre_saves = protein.aminoacids[:segment[0].tag]
+		for aa in pre_saves:
+			aa.save(save_tag)
+
 		cluster = protein.aminoacids[segment[0].tag - 1].cluster
 		if cluster[1] - cluster[0] <= segment_length or random.uniform(-160.0, 0.0) <= protein.aminoacids[segment[0].tag - 1].clusterscore:
 			presegment = protein.aminoacids[max(segment[0].tag - segment_length, 0) : segment[0].tag]
@@ -171,7 +178,6 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		begin_offset = protein.aminoacids[presegment[-1].tag + 1].acarbon.subtract(presegment[-1].acarbon)
 		begin_offset = begin_offset.multiply((begin_offset.magnitude() - random.uniform(2.5, 3.5)) / begin_offset.magnitude())
 		for aa in presegment:
-			if restore == True: aa.save()
 			aa.acarbon = aa.acarbon.add(begin_offset)
 		#Get the probability list for the segment. It should be sorted by probability.
 		probabilities = []
@@ -182,8 +188,8 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 			probabilities = psource.probabilities(presegment, anchors=anchors, primanchor=0, prior=False, connected=(wave == 1))
 		if len(probabilities) == 0:
 			if restore == True:
-				for aa in presegment:
-					aa.restore()
+				for aa in pre_saves:
+					aa.restore(save_tag)
 			return None
 
 		#Sample the cumulative distribution function and execute the change.
@@ -197,15 +203,20 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 				probabilities.remove(entry)
 		if application_ret is None:
 			if restore == True:
-				for aa in presegment:
-					aa.restore()
+				for aa in pre_saves:
+					aa.restore(save_tag)
 			return None
 		else:
 			mutation_list[0] = application_ret[0]
 		assert psource.permissions.is_valid(presegment[-1], anchors[0], prior=False), "Invalid orientation for presegment: {} and {} ({})".format(presegment, anchors, anchors[0].tolocal(presegment[0].acarbon))
 		#print protein.xyz(escaped=False, highlight=range(presegment[0].tag, presegment[-1].tag + 1))
 	
+	post_saves = []
 	if segment[-1].tag < len(protein.aminoacids) - 1 and not psource.is_connected(segment) and wave != 1:
+		post_saves = protein.aminoacids[segment[-1].tag + 1 :]
+		for aa in post_saves:
+			aa.save(save_tag)
+
 		cluster = protein.aminoacids[segment[-1].tag + 1].cluster
 		if cluster[1] - cluster[0] <= segment_length or random.uniform(-160.0, 0.0) <= protein.aminoacids[segment[-1].tag + 1].clusterscore:
 			postsegment = protein.aminoacids[segment[-1].tag + 1 : min(segment[-1].tag + 1 + segment_length, len(protein.aminoacids))]
@@ -218,7 +229,6 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		end_offset = protein.aminoacids[postsegment[0].tag - 1].acarbon.subtract(postsegment[0].acarbon)
 		end_offset = end_offset.multiply((end_offset.magnitude() - random.uniform(2.5, 3.5)) / end_offset.magnitude())
 		for aa in postsegment:
-			if restore == True: aa.save()
 			aa.acarbon = aa.acarbon.add(end_offset)
 		#Get the probability list for the segment. It should be sorted by probability.
 		probabilities = []
@@ -229,10 +239,8 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 			probabilities = psource.probabilities(postsegment, anchors=anchors, primanchor=0, prior=True, connected=(wave == 2))
 		if len(probabilities) == 0:
 			if restore == True:
-				for aa in postsegment:
-					aa.restore()
-				for aa in protein.aminoacids[mutation_list[0] : segment[0].tag]:
-					aa.restore()
+				for aa in pre_saves + post_saves:
+					aa.restore(save_tag)
 			return None
 
 		#Sample the cumulative distribution function and execute the change.
@@ -246,10 +254,8 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 				probabilities.remove(entry)
 		if application_ret is None:
 			if restore == True:
-				for aa in postsegment:
-					aa.restore()
-				for aa in protein.aminoacids[mutation_list[0] : segment[0].tag]:
-					aa.restore()
+				for aa in pre_saves + post_saves:
+					aa.restore(save_tag)
 			return None
 		else:
 			mutation_list[1] = application_ret[1]
@@ -265,27 +271,30 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		file.write(protein.xyz(escaped=False, highlight=highlight)) #, highlight=range(mutation_list[0], mutation_list[1])))
 	return mutation_list
 
-def apply_conformation(protein, psource, segment_length, segment, selected_conformation, restore=False, file=None):
+def apply_conformation(protein, psource, segment_length, segment, selected_conformation, restore=True, file=None):
 	"""If no valid permissible conformation is found using the selected_conformation, this function returns None.
 		If restore=False, this function returns True and simply adjusts the location of the amino acids (including a wave of adjustments).
 		If restore=True, this function returns an array of hypothetical amino acids representing the final locations of the changed residues (including the wave of adjustments). All the amino acids will be restored back to their original positions at the end."""
-	if restore == True:
-		for aa in segment:
-			aa.save()
+	#if restore == True:
+	#	for aa in protein.aminoacids:
+	#		aa.save(56)
 	application_ret = _apply_conformation_recursive(protein, psource, segment_length, segment, selected_conformation, restore, wave=3, file=file)
 	if application_ret is None:
-		if restore == True:
-			for aa in segment:
-				aa.restore()
+		#if restore == True:
+		#	print "Restoring app"
+		#	for aa in protein.aminoacids:
+		#		aa.restore(56)
 		return None
 	else:
-		if restore == True:
+		'''if restore == True:
 			hypotheticals = []
 			for aa in protein.aminoacids[application_ret[0] : application_ret[1]]:
-				hypotheticals.append(aa.hypothetical(aa.restore(), True))
+				hypotheticals.append(aa.hypothetical(aa.restore(56), True))
+			for aa in protein.aminoacids:
+				aa.discard_save(56)
 			return hypotheticals
-		else:
-			return True
+		else:'''
+		return True
 
 #MARK: - Iterations
 
@@ -306,7 +315,7 @@ def folding_iteration(system, psources, segment_length=1, file=None):
 	
 	#Save a copy of the chain just in case there's a steric violation.
 	for aa in protein.aminoacids:
-		aa.save()
+		aa.save(78)
 
 	if segment_length == 0:
 		mutate_aa_orientation(protein, psource, random.choice(protein.aminoacids))
@@ -325,7 +334,7 @@ def folding_iteration(system, psources, segment_length=1, file=None):
 		application_ret = None
 		while application_ret is None and len(probabilities) > 0:
 			selected_conformation = sample_cdf(probabilities)
-			application_ret = apply_conformation(protein, psource, segment_length, segment, selected_conformation, file=file)
+			application_ret = apply_conformation(protein, psource, segment_length, segment, selected_conformation, file=file, restore=True)
 			if application_ret is None:
 				entry = next(i for i in probabilities if i[0] == selected_conformation)
 				probabilities.remove(entry)
@@ -343,11 +352,11 @@ def folding_iteration(system, psources, segment_length=1, file=None):
 	if violated is True:
 		print "Steric violation."
 		for aa in protein.aminoacids:
-			aa.restore()
+			aa.restore(78)
 	else:
 		aa.clear_save()
 
-def constructive_folding_iteration(protein, psources, system=None, file=None):
+def constructive_folding_iteration(system, psources, file=None):
 	"""The backbone of the protein folding simulator, but for segmented, constructive simulations. The gist of the algorithm is to choose a random subset of the amino acids in 'protein' (which is a Polypeptide) and move them randomly. The function returns no value, just updates the protein.
 		
 		folding_iteration uses the ProbabilitySource object's probabilities() method to determine where to move the segment. psource should accept a list of relevant amino acids (the residues for which probabilities are required) and return a list of lists (form: [[conformation, probability], ...]) representing a cumulative distribution function and sorted by probability. (The conformation should be specified as a list of position zones, one for each amino acid.)
@@ -356,9 +365,13 @@ def constructive_folding_iteration(protein, psources, system=None, file=None):
 		
 		Specify an open file object to write intermediate output to it."""
 	
+	#Choose a psource at random to use in this iteration
+	psource = random.choice(psources)
+	protein = psource.protein
+	
 	#Save a copy of the chain just in case there's a steric violation.
 	for aa in protein.aminoacids:
-		aa.save()
+		aa.save(910)
 	
 	#Choose a random segment out of the protein.
 	segment = psource.choose_segment(0)
@@ -381,7 +394,7 @@ def constructive_folding_iteration(protein, psources, system=None, file=None):
 	application_ret = None
 	while application_ret is None and len(probabilities) > 0:
 		selected_conformation = sample_cdf(probabilities)
-		application_ret = apply_conformation(protein, psource, 1, segment, selected_conformation, file=file)
+		application_ret = apply_conformation(protein, psource, 1, segment, selected_conformation, file=file, restore=True)
 		if application_ret is None:
 			entry = next(i for i in probabilities if i[0] == selected_conformation)
 			probabilities.remove(entry)
@@ -389,7 +402,7 @@ def constructive_folding_iteration(protein, psources, system=None, file=None):
 	reset_stats()
 	if application_ret is None:
 		for aa in protein.aminoacids:
-			aa.restore()
+			aa.restore(910)
 		return
 
 	violated = False
@@ -400,7 +413,7 @@ def constructive_folding_iteration(protein, psources, system=None, file=None):
 	if violated is True:
 		print "Steric violation."
 		for aa in protein.aminoacids:
-			aa.restore()
+			aa.restore(910)
 	else:
 		aa.clear_save()
 
@@ -427,11 +440,17 @@ def test_segment_combo(q, dists, seg_prob, seq1, seq2, conf1, conf2):
 		aas, hashtable = seg_prob.generate_structure_from_segments(seq1 + seq2, conf1, conf2)
 		test_no += 1
 	if test_no > 25:
-		q.put(0)
+		if q:
+			q.put(0)
+		else:
+			return 0
 	protein = Polypeptide(aas)
-	q.put(sum(dist.score(protein, protein.aminoacids) for dist in dists))
+	if q:
+		q.put(sum(dist.score(protein, protein.aminoacids) for dist in dists))
+	else:
+		return sum(dist.score(protein, protein.aminoacids) for dist in dists)
 
-def segment_fold(dists, seq, range1, range2, infiles, output, sec_structs=None, outname="simulation_test.pdb", cluster_confs=25, sims=75, candidates=20):
+def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_structs=None, outname="simulation_test.pdb", cluster_confs=25, sims=75, candidates=20):
 	cluster_confs = int(cluster_confs)
 	sims = int(sims)
 	candidates = int(candidates)
@@ -451,14 +470,15 @@ def segment_fold(dists, seq, range1, range2, infiles, output, sec_structs=None, 
 	scores = []
 	print "Preliminary conformation testing..."
 	
-	queue = Queue()
+	#queue = Queue()
 	for i in xrange(len(seg_prob.c1_conformations)):
 		print "Testing c1", i
 		for j in xrange(len(seg_prob.c2_conformations)):
-			p = Process(target=test_segment_combo, args=(queue, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0]))
+			'''p = Process(target=test_segment_combo, args=(queue, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0]))
 			p.start()
 			p.join() # this blocks until the process terminates
-			result = queue.get()
+			result = queue.get()'''
+			result = test_segment_combo(None, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0])
 			if result != 0:
 				scores.append([i, j, result])
 
@@ -486,7 +506,6 @@ def segment_fold(dists, seq, range1, range2, infiles, output, sec_structs=None, 
 				peptide.add_secondary_structures(sec_structs, format='csv', range=(range1[0], range2[1]))
 			else:
 				peptide.add_secondary_structures(sec_structs, format='pdb', range=(range1[0], range2[1]))
-		print sec_structs
 		system.center()
 
 		scores = []
@@ -502,7 +521,7 @@ def segment_fold(dists, seq, range1, range2, infiles, output, sec_structs=None, 
 		pdb_model_idx += 1
 		for n in xrange(sims):
 			#seglen = segment_length(scores[-1] / len(peptide.aminoacids))
-			constructive_folding_iteration(peptide, seg_prob, system=system)
+			constructive_folding_iteration(system, [seg_prob])
 			system.center()
 			curscore = 0.0
 			t_scores = ""
@@ -772,6 +791,7 @@ def start_run((run, seq, sec_structs)):
 		if len(run) > 2:
 			# Get extra parameters
 			for arg in run[2:]:
+				arg = ','.join(arg)
 				kv = arg.split("=")
 				extra_args[kv[0]] = kv[1]
 		range = [int(x) for x in run[0][0].split("-")]
@@ -792,7 +812,8 @@ def run_simulation(directives, output):
 			if line[0] == "#": continue
 			if len(line.strip()) == 0:
 				if processing_runs:
-					run_groups.append([])
+					if len(run_groups) > 0 and len(run_groups[-1]):
+						run_groups.append([])
 				else:
 					processing_runs = True
 					run_groups.append([])
@@ -804,14 +825,18 @@ def run_simulation(directives, output):
 				if not sec_structs: sec_structs = ""
 				sec_structs += line
 	sec_structs = sec_structs.strip()
-	print sec_structs
 
 	for i, group in enumerate(run_groups):
 		print "Starting run group", i
 		pool = multiprocessing.Pool(processes=2, maxtasksperchild=1)
-		pool.map(start_run, [(run, seq, sec_structs) for run in group])
-		pool.close()
-		pool.join()
+		try:
+			pool.map(start_run, [(run, seq, sec_structs) for run in group])
+		except KeyboardInterrupt:
+			pool.terminate()
+			pool.join()
+		else:
+			pool.close()
+			pool.join()
 
 if __name__ == '__main__':
 	args = sys.argv[1:]

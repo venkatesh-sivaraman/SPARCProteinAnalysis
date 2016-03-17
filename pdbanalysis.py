@@ -213,7 +213,6 @@ def write_median_frequencies(input):
 		else:
 			median = 0.0
 			mean = 0.0
-		print median, mean
 		with open(os.path.join(input, path), 'r') as file:
 			text = file.readlines()
 		with open(os.path.join(input, path), 'w') as file:
@@ -1359,7 +1358,6 @@ def format_hydrophobicity_dist(input, output):
 	if not os.path.exists(output): os.mkdir(output)
 	#Write them to file and find the median of each one.
 	for k, dist in enumerate(dists):
-		print k, dist
 		s = sorted(dist.values())
 		if len(s) > 0:
 			#median = s[int(len(s) / 2.0)][1]
@@ -1981,7 +1979,7 @@ def aggregate_networkdata(input, output):
 			if not os.path.isdir(os.path.join(input, subdir)): continue
 			print subdir
 			for subsubdir in os.listdir(os.path.join(input, subdir)):
-				'''if "medium" in subsubdir and not os.path.isdir(os.path.join(input, subdir, subsubdir)) and int(subsubdir[7:-4]) == req_aa:
+				if "medium" in subsubdir and not os.path.isdir(os.path.join(input, subdir, subsubdir)) and int(subsubdir[7:-4]) == req_aa:
 					print "Analyzing medium file", subsubdir, "in", subdir
 					with open(os.path.join(input, subdir, subsubdir), "r") as file:
 						for line in file:
@@ -2016,7 +2014,7 @@ def aggregate_networkdata(input, output):
 									secondary_data[struct_type][pz] += int(comps[1])
 								else:
 									secondary_data[struct_type][pz] = int(comps[1])
-						del file'''
+						del file
 				if subsubdir == "medium":
 					for aafile in os.listdir(os.path.join(input, subdir, subsubdir)):
 						if ".txt" not in aafile: continue
@@ -2045,10 +2043,10 @@ def aggregate_networkdata(input, output):
 					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
 				f.close()
 
-		'''write_file("nonconsec")
+		write_file("nonconsec")
 		write_file("consec")
 		write_file("consec+secondary")
-		write_file("short-range")'''
+		write_file("short-range")
 
 		#Medium
 		if not os.path.exists(os.path.join(output, "medium")): os.mkdir(os.path.join(output, "medium"))
@@ -2157,17 +2155,21 @@ def aggregate_secondary_structures(input):
 						str(pz.z_axis.x) + ", " + str(pz.z_axis.y) + ", " + str(pz.z_axis.z) + "; " +
 						str(freq) + "\n")
 
-def aggregate_permissible_sequences(input, cutoff=0.05):
-	"""Aggregates the contents of each permissible sequence folder into the input directory. Recommended to run first with a cutoff of 0 to see how many zones you get, then choose a cutoff accordingly."""
+def aggregate_permissible_sequences(input, output, cutoff=0.05):
+	"""Aggregates the contents of each permissible sequence folder into the output directory. Recommended to run first with a cutoff of 0 to see how many zones you get, then choose a cutoff accordingly."""
 	data = {}
 	for folder in os.listdir(input):
-		if not os.path.isdir(os.path.join(input, folder)): continue
+		basepath = os.path.join(input, folder)
+		if not os.path.isdir(basepath): continue
 		print folder
-		filenames = os.listdir(os.path.join(input, folder))
+		if os.path.exists(os.path.join(basepath, "permissible_sequences")):
+			if os.path.isdir(os.path.join(basepath, "permissible_sequences")):
+				basepath = os.path.join(basepath, "permissible_sequences")
+		filenames = os.listdir(basepath)
 		for struct_file in filenames:
 			if ".txt" not in struct_file: continue
 			struct_type = struct_file[:-4]
-			with open(os.path.join(input, folder, struct_file), "r") as file:
+			with open(os.path.join(basepath, struct_file), "r") as file:
 				current_zones = None
 				for line in file:
 					if len(line.strip()) == 0:
@@ -2196,7 +2198,7 @@ def aggregate_permissible_sequences(input, cutoff=0.05):
 			all_frequencies = [c for coll in data_dict.values() for c in coll.values()]
 			all_frequencies = sorted(all_frequencies, key=lambda x: -x)
 			min_freq = all_frequencies[int(len(all_frequencies) * cutoff)]
-		with open(os.path.join(input, filename), "w") as f:
+		with open(os.path.join(output, filename), "w") as f:
 			for zone1, zone2 in data_dict:
 				if min_freq > 0:
 					points_to_write = []
@@ -2216,6 +2218,7 @@ def aggregate_permissible_sequences(input, cutoff=0.05):
 					if cutoff > 1 and running_freq > cutoff: break
 				f.write("\n")
 				del points_to_write, sorted_points
+	if not os.path.exists(output): os.mkdir(output)
 	if len(data) == 1:
 		write_aggregate_freq_data(data.values()[0], "permissible_sequences.txt")
 	else:
