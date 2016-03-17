@@ -90,26 +90,25 @@ class Polypeptide(object):
 				ret += "N\t%.4f\t%.4f\t%.4f\n" % (aa.nitrogen.x, aa.nitrogen.y, aa.nitrogen.z)
 			return ret
 
-	def pdb(self, modelno=1):
+	def pdb(self, modelno=1, chain=0):
 		ret = "MODEL        %d\n" % modelno
 		idx = 1
 		chain_letters = string.ascii_uppercase
-		chain = 0
-		for aa in self.aminoacids:
+		for i, aa in enumerate(self.aminoacids):
 			aa.nitrogen = aa.toglobal(Point3D(NITROGEN_BOND_LENGTH, math.pi + math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
 			aa.carbon = aa.toglobal(Point3D(CARBON_BOND_LENGTH, math.pi - math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
-			ret += "ATOM  {0:>5}  N   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.nitrogen.x, "%.3f" % aa.nitrogen.y, "%.3f" % aa.nitrogen.z)
+			ret += "ATOM  {0:>5}  N   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], i + 1, "%.3f" % aa.nitrogen.x, "%.3f" % aa.nitrogen.y, "%.3f" % aa.nitrogen.z)
 			idx += 1
-			ret += "ATOM  {0:>5}  CA  {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.acarbon.x, "%.3f" % aa.acarbon.y, "%.3f" % aa.acarbon.z)
+			ret += "ATOM  {0:>5}  CA  {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], i + 1, "%.3f" % aa.acarbon.x, "%.3f" % aa.acarbon.y, "%.3f" % aa.acarbon.z)
 			idx += 1
 			h = aa.toglobal(Point3D(1.1, 0.0, math.acos(-1.0 / 3.0)).tocartesian())
-			ret += "ATOM  {0:>5}  H   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % h.x, "%.3f" % h.y, "%.3f" % h.z)
+			ret += "ATOM  {0:>5}  H   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], i + 1, "%.3f" % h.x, "%.3f" % h.y, "%.3f" % h.z)
 			idx += 1
-			ret += "ATOM  {0:>5}  C   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % aa.carbon.x, "%.3f" % aa.carbon.y, "%.3f" % aa.carbon.z)
+			ret += "ATOM  {0:>5}  C   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], i + 1, "%.3f" % aa.carbon.x, "%.3f" % aa.carbon.y, "%.3f" % aa.carbon.z)
 			idx += 1
 			for atom, location in aa.otheratoms.iteritems():
 				location = aa.toglobal(location)
-				ret += "ATOM  {0:>5}  {1:<4}{2} {3}{4:>4}    {5:>8}{6:>8}{7:>8}\n".format(idx, atom.strip(), aa.type, chain_letters[chain], aa.tag + 1, "%.3f" % location.x, "%.3f" % location.y, "%.3f" % location.z)
+				ret += "ATOM  {0:>5}  {1:<4}{2} {3}{4:>4}    {5:>8}{6:>8}{7:>8}\n".format(idx, atom.strip(), aa.type, chain_letters[chain], i + 1, "%.3f" % location.x, "%.3f" % location.y, "%.3f" % location.z)
 				idx += 1
 			if aa.has_break: chain += 1
 		ret += "ENDMDL\n"
@@ -146,7 +145,7 @@ class Polypeptide(object):
 			aa.nitrogen = aa.nitrogen.subtract(center)
 			aa.carbon = aa.carbon.subtract(center)
 
-	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, cache_aas=None):
+	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False, cache_aas=None):
 		"""Pass in a file or file-like object to read. Set checkgaps to True to return a list of missing amino acid indices (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
 		gaps = []
 		current_aa = None
@@ -182,7 +181,7 @@ class Polypeptide(object):
 					chain_start = line[19]
 					chain_end = line[31]
 					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
-					self.secondary_structures.append(Helix(start_seq, end_seq, type))
+					self.secondary_structures.append(Helix(start_seq - 1, end_seq - 1, type))
 				elif line.find('SHEET') == 0:
 					sense = int(line[38:40])
 					start_seq = int(line[23:26])
@@ -193,9 +192,9 @@ class Polypeptide(object):
 					if not current_sheet or sense == 0:
 						if current_sheet:
 							self.secondary_structures.append(current_sheet)
-						current_sheet = Sheet(start_seq, end_seq, sense)
+						current_sheet = Sheet(start_seq - 1, end_seq - 1, sense)
 					else:
-						current_sheet.add_strand(start_seq, end_seq, sense)
+						current_sheet.add_strand(start_seq - 1, end_seq - 1, sense)
 
 			if line.find('ATOM') != 0: continue
 			if line[17:20] == "SOL": break		#There are no more amino acids after the solvent molecules start
@@ -206,18 +205,6 @@ class Polypeptide(object):
 				current_aa.has_break = True
 			if chain is not current_chain or current_seq != seq:
 				current_chain = chain
-				if seq - current_seq > 1 and current_seq != 0:
-					if checkgaps:
-						print "Gap between", current_seq, "and", seq
-						for n in xrange(current_seq, seq): gaps.append(n)
-					if fillgaps:
-						while seq != current_seq:
-							self.aminoacids.append(None)
-							current_seq += 1
-				current_seq = seq
-				if current_seq < minseq: minseq = current_seq
-				if current_seq > maxseq: maxseq = current_seq
-				current_tag += 1
 				if current_aa is not None and current_aa.acarbon == Point3D.zero() and len(self.aminoacids) > 0:
 					self.aminoacids.pop()
 				assert current_aa is None or current_aa.carbon != Point3D.zero() or current_aa.nitrogen != Point3D.zero(), "Cannot have an amino acid with no carbon or nitrogen location: %r" % current_aa
@@ -230,6 +217,21 @@ class Polypeptide(object):
 						self.aminoacids.pop()
 						if fillgaps:
 							self.aminoacids.append(None)
+				if seq - current_seq > 1 and (current_seq != 0 or fillends):
+					current_seq += 1
+					if checkgaps:
+						print "Gap between", current_seq, "and", seq
+						for n in xrange(current_seq, seq): gaps.append(n)
+					if fillgaps:
+						while seq != current_seq:
+							self.aminoacids.append(None)
+							current_seq += 1
+							current_tag += 1
+				current_seq = seq
+				if current_seq < minseq: minseq = current_seq
+				if current_seq > maxseq: maxseq = current_seq
+				current_tag += 1
+
 				if cache_aas:
 					current_aa = cache_aas[0]
 					del cache_aas[0]
@@ -277,7 +279,7 @@ class Polypeptide(object):
 		else:
 			return (minseq, maxseq)
 
-	def read(self, filepath, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False):
+	def read(self, filepath, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False):
 		"""Set checkgaps to True to return a True value (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids). Set secondary_structure to True to populate the secondary_structures array of the protein with Helix and Sheet objects. Set fillgaps to True to fill the peptide amino acids array with None objects wherever there is a gap."""
 		f = open(filepath, 'r')
 		ret = self.read_file(f, checkgaps, otheratoms, secondary_structure, fillgaps)
@@ -286,29 +288,41 @@ class Polypeptide(object):
 	
 	def secondary_structure_aa(self, aa_idx):
 		"""Returns the (structure, strand) of the protein that contains amino acid at the index provided, and None if there is no secondary structure defined there."""
+		if isinstance(aa_idx, AminoAcid):
+			return find_secondary_structure(self.secondary_structures, aa_idx.tag)
 		return find_secondary_structure(self.secondary_structures, aa_idx)
 
-	def add_secondary_structures(self, sec_struct_string, format='csv'):
-		"""Takes a string of secondary structures in PDB or CSV format, depending on the format option, and adds them to the secondary structure array. CSV format should be 'type', 'subtype', 'start', 'end'. For instance, helix,1,3,6 covers amino acids at indices 2-5 (values are 1-indexed)."""
+	def add_secondary_structures(self, sec_struct_string, format='csv', range=None):
+		"""Takes a string of secondary structures in PDB or CSV format, depending on the format option, and adds them to the secondary structure array. CSV format should be 'type', 'subtype', 'start', 'end'. For instance, helix,1,3,6 covers amino acids at indices 2-5 (values are 1-indexed). If you pass a tuple (start, end) for range, then the secondary structures will be shifted to only cover the amino acids within that range."""
 		current_sheet = None
 		self.secondary_structures = []
 		if format == 'csv':
 			for line in sec_struct_string.split('\n'):
 				comps = line.split(',')
+				start = int(comps[2]) - 1
+				end = int(comps[3]) - 1
+				if range:
+					if end < range[0] or start > range[1]: continue
+					start = max(0, start - range[0] + 1)
+					end = min(end - range[0] + 1, range[1] - range[0])
 				if comps[0].lower() == 'helix':
-					self.secondary_structures.append(Helix(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1])))
+					self.secondary_structures.append(Helix(start, end, int(comps[1])))
 				elif comps[0].lower() == 'sheet':
 					if int(comps[1]) == 0:
 						if current_sheet: self.secondary_structures.append(current_sheet)
-						current_sheet = Sheet(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1]))
+						current_sheet = Sheet(start, end, int(comps[1]))
 					else:
-						current_sheet.add_strand(int(comps[2]) - 1, int(comps[3]) - 1, int(comps[1]))
+						current_sheet.add_strand(start, end, int(comps[1]))
 				else: print "Unknown secondary structure"
 		else:
 			for line in sec_struct_string.split('\n'):
 				if line.find('HELIX') == 0:
 					start_seq = int(line[22:26]) - 1
 					end_seq = int(line[34:38]) - 1
+					if range:
+						if end_seq < range[0] or start_seq > range[1]: continue
+						start_seq = max(0, start_seq - range[0] + 1)
+						end_seq = min(end_seq - range[0] + 1, range[1] - range[0])
 					type = int(line[39:41])
 					chain_start = line[19]
 					chain_end = line[31]
@@ -318,6 +332,10 @@ class Polypeptide(object):
 					sense = int(line[38:40])
 					start_seq = int(line[23:26]) - 1
 					end_seq = int(line[34:37]) - 1
+					if range:
+						if end_seq < range[0] or start_seq > range[1]: continue
+						start_seq = max(0, start_seq - range[0] + 1)
+						end_seq = min(end_seq - range[0] + 1, range[1] - range[0])
 					chain_start = line[21]
 					chain_end = line[32]
 					if chain_start.upper() != "A" or chain_end.upper() != "A": continue

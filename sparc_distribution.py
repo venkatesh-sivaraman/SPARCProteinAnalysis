@@ -33,7 +33,7 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 	"""The basic distribution handles just frequencies. It represents a noncommutative potential function for EITHER nonconsecutive or consecutive data."""
 	
 	def __init__(self, frequencies_path, isconsec=False, blocks_sec_struct=False, short_range=2, references=None):
-		"""frequencies_path should be a path to a directory of alpha zones paired with frequencies for individual amino acid pairs. If blocks_sec_struct is True, then secondary structures will be ignored. To treat secondary structures exclusively, use a SPARCSecondaryDistributionManager."""
+		"""frequencies_path should be a path to a directory of alpha zones paired with frequencies for individual amino acid pairs. If blocks_sec_struct is True, then secondary structures will be ignored. To treat secondary structures exclusively, use a SPARCSecondaryDistributionManager. The default value for short_range is 2, which means that all nonconsecutive interactions are captured. If you pass True or False for short_range, those interactions will be either considered exclusively or excluded."""
 		self.alpha_frequencies = {}
 		self.reference_frequencies = None #{}
 		self.total_interactions = [[0 for i in xrange(AMINO_ACID_COUNT)] for j in xrange(AMINO_ACID_COUNT)]
@@ -70,7 +70,7 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		else:
 			return 0
 	
-	def score(self, protein, data, isolate=False, onlyone=False, prior=2):
+	def score(self, protein, data, system=None, isolate=False, onlyone=False, prior=2):
 		"""For frequency distributions, pass in an array of hypothetical aminoacids. This implementation returns the product of the frequencies of each pairwise interaction. If isolate=True, only the amino acids in data will be considered for the energy calculation.
 			Pass prior to consider ONLY the amino acid before (True) or after (False) each amino acid in data. This works best for consecutive distributions."""
 		score = 0.0
@@ -87,7 +87,10 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 				if aa.tag > 0 and prior != False: nearby.append(protein.aminoacids[aa.tag - 1])
 				if aa.tag < len(protein.aminoacids) - 1 and prior != True: nearby.append(protein.aminoacids[aa.tag + 1])
 			else:
-				nearby = protein.nearby_aa(aa, 10.0, consec=consec)
+				if system and not consec and self.short_range != 0:
+					nearby = system.nearby_aa(aa, protein, 10.0, consec=consec)
+				else:
+					nearby = protein.nearby_aa(aa, 10.0, consec=consec)
 			for aa2 in nearby:
 				if not aa2: continue
 				if aa2.tag - aa.tag == 1 and aa.has_break: continue
@@ -234,7 +237,7 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 		else:
 			return 0
 	
-	def score(self, protein, data, isolate=False, onlyone=False, prior=2):
+	def score(self, protein, data, system=None, isolate=False, onlyone=False, prior=2):
 		"""For frequency distributions, pass in an array of hypothetical aminoacids. This implementation returns the product of the frequencies of each pairwise interaction. If isolate=True, only the amino acids in data will be considered for the energy calculation.
 			Pass prior to consider ONLY the amino acid before (True) or after (False) each amino acid in data. This works best for consecutive distributions."""
 		score = 0.0
@@ -252,7 +255,10 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 				if aa.tag > 0 and prior != False: nearby.append(protein.aminoacids[aa.tag - 1])
 				if aa.tag < len(protein.aminoacids) - 1 and prior != True: nearby.append(protein.aminoacids[aa.tag + 1])
 			else:
-				nearby = protein.nearby_aa(aa, 10.0, consec=consec)
+				if system:
+					nearby = system.nearby_aa(aa, protein, 10.0, consec=consec)
+				else:
+					nearby = protein.nearby_aa(aa, 10.0, consec=consec)
 			for aa2 in nearby:
 				if (aa.tag in taglist and aa2.tag in taglist[aa.tag]) or (aa2.tag in taglist and aa.tag in taglist[aa2.tag]):
 					continue

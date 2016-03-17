@@ -1,7 +1,14 @@
 from distributions import *
-from polypeptide import *
+from molecular_systems import *
 from probsource import *
 import random
+from main import load_dists
+import os, sys
+import numpy
+from multiprocessing import Process, Queue
+import datetime, time
+
+#MARK: Helpers
 
 def mutate_aa_orientation(protein, psource, residue):
 	#Find angle probabilities.
@@ -133,6 +140,7 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 
 	#Now radiate outward from the selected segment and adjust the neighbor segments' positions.
 	segment_length = 1
+
 	if segment[0].tag > 0 and not psource.is_connected(segment) and wave != 2:
 		cluster = protein.aminoacids[segment[0].tag - 1].cluster
 		if cluster[1] - cluster[0] <= segment_length or random.uniform(-160.0, 0.0) <= protein.aminoacids[segment[0].tag - 1].clusterscore:
@@ -159,7 +167,6 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 			if restore == True:
 				for aa in presegment:
 					aa.restore()
-			print "Going back"
 			return None
 
 		#Sample the cumulative distribution function and execute the change.
@@ -207,7 +214,8 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 			if restore == True:
 				for aa in postsegment:
 					aa.restore()
-			print "Going back"
+				for aa in protein.aminoacids[mutation_list[0] : segment[0].tag]:
+					aa.restore()
 			return None
 
 		#Sample the cumulative distribution function and execute the change.
@@ -222,6 +230,8 @@ def _apply_conformation_recursive(protein, psource, segment_length, segment, sel
 		if application_ret is None:
 			if restore == True:
 				for aa in postsegment:
+					aa.restore()
+				for aa in protein.aminoacids[mutation_list[0] : segment[0].tag]:
 					aa.restore()
 			return None
 		else:
@@ -248,21 +258,21 @@ def apply_conformation(protein, psource, segment_length, segment, selected_confo
 	application_ret = _apply_conformation_recursive(protein, psource, segment_length, segment, selected_conformation, restore, wave=3, file=file)
 	if application_ret is None:
 		if restore == True:
-			print "Restoring"
 			for aa in segment:
 				aa.restore()
 		return None
 	else:
 		if restore == True:
 			hypotheticals = []
-			print "Doing something with hypotheticals"
 			for aa in protein.aminoacids[application_ret[0] : application_ret[1]]:
 				hypotheticals.append(aa.hypothetical(aa.restore(), True))
 			return hypotheticals
 		else:
 			return True
 
-def folding_iteration(protein, psource, segment_length=1, file=None):
+#MARK: - Iterations
+
+def folding_iteration(system, psources, segment_length=1, file=None):
 	"""The backbone of the protein folding simulator. The gist of the algorithm is to choose a random subset of the amino acids in 'protein' (which is a Polypeptide) and move them randomly. The function returns no value, just updates the protein.
 		
 		folding_iteration uses the ProbabilitySource object's probabilities() and angleprobabilities() methods to determine where to move the segment. psource should accept a list of relevant amino acids (the residues for which probabilities are required) and return a list of lists (form: [[conformation, probability], ...]) representing a cumulative distribution function and sorted by probability. (The conformation should be specified as a list of position zones, one for each amino acid.)
@@ -272,11 +282,15 @@ def folding_iteration(protein, psource, segment_length=1, file=None):
 		Note that the final transformation is random and not guaranteed to match one of the probabilities exactly (no lattice is involved). Psource provides a randomization_margin function that uses score to determine how much randomization to introduce.
 		
 		Specify an open file object to write intermediate output to it."""
+
+	#Choose a psource at random to use in this iteration
+	psource = random.choice(psources)
+	protein = psource.protein
 	
 	#Save a copy of the chain just in case there's a steric violation.
 	for aa in protein.aminoacids:
 		aa.save()
-	
+
 	if segment_length == 0:
 		mutate_aa_orientation(protein, psource, random.choice(protein.aminoacids))
 		reset_stats()
@@ -301,23 +315,22 @@ def folding_iteration(protein, psource, segment_length=1, file=None):
 		#assert application_ret is not None, "No valid permissible conformation found from this location."
 		reset_stats()
 		if application_ret is None:
-			for aa in protein.aminoacids:
-				aa.restore()
 			return
 
 	violated = False
 	for aa in protein.aminoacids:
-		if len(protein.nearby_aa(aa, psource.steric_cutoff, consec=False, mindiff=psource.steric_consec_diff)) > 0:
+		if system.check_steric_clash(aa, protein, steric_cutoff=psource.steric_cutoff, consec=False, mindiff=psource.steric_consec_diff):
 			violated = True
 			break
+
 	if violated is True:
 		print "Steric violation."
 		for aa in protein.aminoacids:
 			aa.restore()
 	else:
-		aa.discard_save()
+		aa.clear_save()
 
-def constructive_folding_iteration(protein, psource, file=None):
+def constructive_folding_iteration(protein, psources, system=None, file=None):
 	"""The backbone of the protein folding simulator, but for segmented, constructive simulations. The gist of the algorithm is to choose a random subset of the amino acids in 'protein' (which is a Polypeptide) and move them randomly. The function returns no value, just updates the protein.
 		
 		folding_iteration uses the ProbabilitySource object's probabilities() method to determine where to move the segment. psource should accept a list of relevant amino acids (the residues for which probabilities are required) and return a list of lists (form: [[conformation, probability], ...]) representing a cumulative distribution function and sorted by probability. (The conformation should be specified as a list of position zones, one for each amino acid.)
@@ -364,7 +377,7 @@ def constructive_folding_iteration(protein, psource, file=None):
 
 	violated = False
 	for aa in protein.aminoacids:
-		if len(protein.nearby_aa(aa, psource.steric_cutoff, consec=False, mindiff=psource.steric_consec_diff)) > 0:
+		if (system and system.check_steric_clash(aa, protein, steric_cutoff=psource.steric_cutoff, consec=False, mindiff=psource.steric_consec_diff)) or (not system and len(protein.nearby_aa(aa, psource.steric_cutoff, consec=False, mindiff=psource.steric_consec_diff)) > 0):
 			violated = True
 			break
 	if violated is True:
@@ -372,4 +385,418 @@ def constructive_folding_iteration(protein, psource, file=None):
 		for aa in protein.aminoacids:
 			aa.restore()
 	else:
-		aa.discard_save()
+		aa.clear_save()
+
+#MARK: - Simulators
+
+def segment_length(avg_score):
+	"""This function needs a home."""
+	#v = max(5 - math.exp(4.0 / 225.0 * avg_score + 1.6), 1) This decreases as score becomes less stable
+	v = max(math.exp(4.0 / 225.0 * avg_score + 2), 1) #This increases as score becomes less stable
+	weights = [(-1.0 / 9.0 * (x - v) ** 2 + 4.0) for x in xrange(1, 6)]
+	'''v = max(5.0 / math.cosh(0.114622 * (avg_score + 60.0)), 1.0)
+		weights = [(-((((x - v) / 6.0) ** 2) ** (1.0 / 7.0)) + 1.0) for x in xrange(1, 6)]'''
+	s = sum(weights)
+	weights = [w / s for w in weights]
+	return numpy.random.choice(range(1, 4))#, p=weights)
+
+def test_segment_combo(q, dists, seg_prob, seq1, seq2, conf1, conf2):
+	aas, hashtable = seg_prob.generate_structure_from_segments(seq1 + seq2, conf1, conf2)
+	test_no = 0
+	while next((aa for aa in aas if len(hashtable.nearby_aa(aa, seg_prob.steric_cutoff, consec=False))), None):
+		if test_no == 25:
+			test_no = 100
+			break
+		aas, hashtable = seg_prob.generate_structure_from_segments(seq1 + seq2, conf1, conf2)
+		test_no += 1
+	if test_no > 25:
+		q.put(0)
+	protein = Polypeptide(aas)
+	q.put(sum(dist.score(protein, protein.aminoacids) for dist in dists))
+
+def segment_fold(dists, seq, range1, range2, infiles, output, sec_structs=None, outname="simulation_test.pdb", cluster_confs=25, sims=75, candidates=20):
+	cluster_confs = int(cluster_confs)
+	sims = int(sims)
+	candidates = int(candidates)
+	
+	permissions = AAPermissionsManager(os.path.join(sparc_dir, "permissions"), os.path.join(sparc_dir, "permissible_sequences", "all.txt"))
+	peptide = Polypeptide()
+	system = MolecularSystem([peptide])
+	seq1 = seq[range1[0] - 1 : range1[1]]
+	seq2 = seq[range2[0] - 1 : range2[1]]
+	seg_prob = AAConstructiveProbabilitySource(peptide, (0, len(seq1)), (len(seq1), len(seq1) + len(seq2)), dists, permissions, system=system)
+	for i, inf in enumerate(infiles):
+		seg_prob.load_cluster_conformations(i + 1, inf, n=cluster_confs)
+	
+	#First, test all possible combos of the segments with a random linking orientation
+	i = 0
+	j = 0
+	scores = []
+	print "Preliminary conformation testing..."
+	
+	queue = Queue()
+	for i in xrange(len(seg_prob.c1_conformations)):
+		print "Testing c1", i
+		for j in xrange(len(seg_prob.c2_conformations)):
+			p = Process(target=test_segment_combo, args=(queue, dists, seg_prob, seq1, seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0]))
+			p.start()
+			p.join() # this blocks until the process terminates
+			result = queue.get()
+			if result != 0:
+				scores.append([i, j, result])
+
+	scores = sorted(scores, key=lambda x: x[2])
+	scores = scores[:min(len(scores), candidates)]
+	print "The range of", len(scores), "scores is", scores[0][2], "to", scores[-1][2]
+	gc.collect()
+
+	file = open(os.path.join(output, outname), 'w')
+	scoresfile = open(os.path.join(output, outname[:-4] + "-scores.txt"), 'w')
+	pdb_model_idx = 1
+	prob = AAProbabilitySource(peptide, dists, permissions) #sec_struct_permissions
+	prob.mode = psource_gentle_mode
+	model_count = 10
+	best_models = [[] for i in xrange(model_count)]
+	best_scores = [1000 for i in xrange(model_count)]
+
+	a = datetime.datetime.now()
+	for i, j, score in scores:
+		print "Testing combination {}-{} ({})...".format(i, j, score)
+		aas, hashtable = seg_prob.generate_structure_from_segments(seq1 + seq2, seg_prob.c1_conformations[i][0], seg_prob.c2_conformations[j][0])
+		peptide.add_aas(aas)
+		if sec_structs:
+			if ',' in sec_structs:
+				peptide.add_secondary_structures(sec_structs, format='csv', range=(range1[0], range2[1]))
+			else:
+				peptide.add_secondary_structures(sec_structs, format='pdb', range=(range1[0], range2[1]))
+		print sec_structs
+		system.center()
+
+		scores = []
+		t_scores = ""
+		curscore = 0.0
+		for dist in dists:
+			sc = dist.score(peptide, peptide.aminoacids)
+			t_scores += str(sc) + " (" + dist.identifier + ") "
+			curscore += sc
+		scores.append(curscore)
+		scoresfile.write(str(pdb_model_idx) + " " + t_scores + "\n")
+		file.write(system.pdb(modelno=pdb_model_idx))
+		pdb_model_idx += 1
+		for n in xrange(sims):
+			#seglen = segment_length(scores[-1] / len(peptide.aminoacids))
+			constructive_folding_iteration(peptide, seg_prob, system=system)
+			system.center()
+			curscore = 0.0
+			t_scores = ""
+			for dist in dists:
+				sc = dist.score(peptide, peptide.aminoacids, system=system)
+				t_scores += str(sc) + " (" + dist.identifier + ") "
+				curscore += sc
+			scores.append(curscore)
+			scoresfile.write(str(pdb_model_idx) + " " + t_scores + "\n")
+			file.write(system.pdb(modelno=pdb_model_idx))
+			pdb_model_idx += 1
+			'''#Save the conformation if it is the best so far.
+			for k in xrange(model_count):
+				if scores[-1] < best_scores[k] * 1.2:
+					for m in reversed(xrange(max(k, 1), model_count)):
+						best_scores[m] = best_scores[m - 1]
+						best_models[m] = best_models[m - 1]
+					best_scores[k] = scores[-1]
+					best_models[k] = [PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in peptide.aminoacids]
+					break
+				elif scores[-1] <= best_scores[k]:
+					break'''
+
+		del peptide.aminoacids[:]
+		peptide.hashtable = None
+		gc.collect()
+
+	'''new_best_models = []
+	new_best_scores = [1000 for n in xrange(model_count)]
+	for k, model in enumerate(best_models):
+		print "Refining model {}: {}".format(k, model)
+		for i, aa in enumerate(peptide.aminoacids):
+			aa.acarbon = model[i].alpha_zone
+			aa.set_axes(model[i].x_axis, model[i].y_axis, model[i].z_axis)
+		#Keep track of how long the model has had this score.
+		running_count = 0
+		last_score = 0.0
+		new_best_models.append([])
+		print dists, peptide.aminoacids
+		currscore = sum(dist.score(peptide, peptide.aminoacids) for dist in dists)
+		print "First has score", currscore
+		while running_count < 50:
+			seglen = segment_length(scores[-1] / len(peptide.aminoacids))
+			folding_iteration(peptide, prob, seglen)
+			peptide.center()
+			newscore = sum(dist.score(peptide, peptide.aminoacids) for dist in dists)
+			if last_score == newscore:
+				running_count += 1
+			else:
+				running_count = 0
+				last_score = newscore
+			if newscore < new_best_scores[k]:
+				print "New best score"
+				new_best_scores[k] = newscore
+				new_best_models[k] = [PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in peptide.aminoacids]
+			elif newscore > new_best_scores[k] + 20.0:
+				print "Too unstable"
+				break
+	for model in new_best_models:
+		for i, aa in enumerate(peptide.aminoacids):
+			aa.acarbon = model[i].alpha_zone
+			aa.set_axes(model[i].x_axis, model[i].y_axis, model[i].z_axis)
+		file.write(system.pdb(modelno=pdb_model_idx))
+		pdb_model_idx += 1
+	print "Best model scores:"
+	for i in xrange(model_count):
+		print "{} ({})".format(i, new_best_scores[i])'''
+
+
+	'''gentle_cutoff = 0
+	pdb_model_idx = 2
+	a = datetime.datetime.now()
+	for i in xrange(500):
+		constructive_folding_iteration(peptide, prob)
+		#peptide.center()
+		curscore = 0.0
+		for aa in peptide.aminoacids:
+			aa.localscore = sum(dist.score(peptide, [aa]) for dist in dists)
+			curscore += aa.localscore
+		scores.append(curscore)
+		t_scores = ""
+		for dist in dists: t_scores += str(dist.score(peptide, peptide.aminoacids)) + " (" + dist.identifier + ") "
+		print i, t_scores
+		#print i, scores[-1] / len(peptide.aminoacids)
+		file.write(system.pdb(modelno=pdb_model_idx))
+		pdb_model_idx += 1'''
+		
+	b = datetime.datetime.now()
+	print "Finished segment fold in {0:.4f} sec.".format((b - a).total_seconds())
+	del peptide.aminoacids[:]
+	peptide = None
+	del scores
+	del system
+	gc.collect()
+
+	file.close()
+	scoresfile.close()
+
+
+def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb", sec_structs=None, model_count=5, n=500):
+	"""For seq, pass the sequence of the entire protein. Only the range of amino acids specified in the tuple 'range' (inclusive) will be simulated. Pass the entire protein worth of secondary structures to sec_structs if it is available."""
+	#"GRYRRCIPGMFRAYCYMD" (2LWT - GRY...MD, 2MDB - KWC...CR, 1QLQ - RPDF...GGA, insulin MALW...YCN)
+	#"KWCFRVCYRGICYRRCR"
+	#"TTCCPSIVARSNFNVCRLPGTPSEALICATYTGCIIIPGATCPGDYAN"
+	#"RPDFCLEPPYAGACRARIIRYFYNAKAGLCQTFVYGGCRAKRNNFKSAEDCLRTCGGA"
+	model_count = int(model_count)
+	n = int(n)
+	
+	permissions = AAPermissionsManager(os.path.join(sparc_dir, "permissions"), os.path.join(sparc_dir, "permissible_sequences", "all.txt"))
+	sec_struct_permissions = AASecondaryStructurePermissionsManager(os.path.join(sparc_dir, "permissible_sequences"))
+	peptide = Polypeptide()
+	#peptide.read("/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb")
+	if sec_structs:
+		if ',' in sec_structs:
+			peptide.add_secondary_structures(sec_structs, format='csv', range=range)
+		else:
+			peptide.add_secondary_structures(sec_structs, format='pdb', range=range)
+	peptide.randomcoil(seq[range[0] - 1 : range[1]], permissions=permissions, struct_permissions=sec_struct_permissions)
+	print seq[range[0] - 1 : range[1]], peptide.secondary_structures
+	system = MolecularSystem([peptide])
+	system.center()
+	file = open(os.path.join(output, outname), 'w')
+	scoresfile = open(os.path.join(output, outname[:-4] + "-scores.txt"), 'w')
+	#file.write(peptide.xyz(escaped=False))
+	scores = []
+	t_scores = ""
+	curscore = 0.0
+	for dist in dists:
+		sc = dist.score(peptide, peptide.aminoacids, system=system)
+		t_scores += str(sc) + " (" + dist.identifier + ") "
+		curscore += sc
+	scores.append(curscore)
+	scoresfile.write("-1 " + t_scores + "\n")
+	file.write(system.pdb(modelno=1))
+	
+	prob = AAProbabilitySource(peptide, dists, permissions, sec_struct_permissions, system=system)
+	gentle_cutoff = 0
+	best_models = [[] for i in xrange(model_count)]
+	best_scores = [1000 for i in xrange(model_count)]
+	pdb_model_idx = 2
+	a = datetime.datetime.now()
+	time_wasted = 0.0
+	for i in xrange(n):
+		print "Iteration", i
+		seglen = segment_length(scores[-1] / len(peptide.aminoacids))
+		folding_iteration(system, [prob], seglen)
+		peptide.center()
+		for aa in peptide.aminoacids:
+			aa.localscore = sum(dist.score(peptide, [aa], system=system) for dist in dists)
+		t_scores = ""
+		curscore = 0.0
+		for dist in dists:
+			sc = dist.score(peptide, peptide.aminoacids, system=system)
+			t_scores += str(sc) + " (" + dist.identifier + ") "
+			curscore += sc
+		scores.append(curscore)
+		#print i, t_scores
+		scoresfile.write(str(i) + " " + t_scores + "\n")
+		#print i, scores[-1] / len(peptide.aminoacids), dists[-1].score(peptide, peptide.aminoacids)
+		#if scores[-1] / len(peptide.aminoacids) <= -100.0:
+			#file.write(peptide.xyz(escaped=False))
+		if curscore / len(peptide.aminoacids) <= 0.0:
+			file.write(system.pdb(modelno=pdb_model_idx))
+			pdb_model_idx += 1
+		#print peptide.xyz(escaped=False)
+		#Save the conformation if it is the best so far.
+		for k in xrange(model_count):
+			if scores[-1] < best_scores[k] * 1.2:
+				for m in reversed(xrange(max(k, 1), model_count)):
+					best_scores[m] = best_scores[m - 1]
+					best_models[m] = best_models[m - 1]
+				best_scores[k] = scores[-1]
+				best_models[k] = [PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in peptide.aminoacids]
+				break
+			elif scores[-1] <= best_scores[k]:
+				break
+		'''if i == 24:
+			#Save the best of the first ten scores as a comparison for later iterations.
+			gentle_cutoff = min(scores)
+		elif i > 24:
+			if scores[-1] < gentle_cutoff and prob.mode == psource_erratic_mode:
+				prob.mode = psource_gentle_mode
+				print "Switching to gentle mode"
+			elif scores[-1] >= gentle_cutoff and prob.mode == psource_gentle_mode:
+				prob.mode = psource_erratic_mode
+				print "Switching to erratic mode"'''
+
+		#time_wasted += 0.5
+		#time.sleep(0.5)
+
+	print "Iterating over the best scores:", best_scores
+	prob.mode = psource_gentle_mode
+	new_best_models = []
+	new_best_scores = [1000 for n in xrange(model_count)]
+	for k, model in enumerate(best_models):
+		if len(model) == 0: continue
+		print "Refining model {}".format(k)
+		for i, aa in enumerate(peptide.aminoacids):
+			aa.acarbon = model[i].alpha_zone
+			aa.set_axes(model[i].x_axis, model[i].y_axis, model[i].z_axis)
+		#Keep track of how long the model has had this score.
+		running_count = 0
+		last_score = 0.0
+		new_best_models.append([])
+		currscore = sum(dist.score(peptide, peptide.aminoacids, system=system) for dist in dists)
+		print "First has score", currscore
+		while running_count < 50:
+			seglen = segment_length(scores[-1] / len(peptide.aminoacids))
+			folding_iteration(system, [prob], seglen)
+			peptide.center()
+			newscore = sum(dist.score(peptide, peptide.aminoacids, system=system) for dist in dists)
+			if last_score == newscore:
+				running_count += 1
+			else:
+				running_count = 0
+				last_score = newscore
+			print "{} ({})".format(newscore, running_count)
+			if newscore < new_best_scores[k]:
+				print "New best score"
+				new_best_scores[k] = newscore
+				new_best_models[k] = [PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in peptide.aminoacids]
+			elif newscore > new_best_scores[k] + 20.0:
+				print "Too unstable"
+				break
+	print "\nFinal:"
+	for model in new_best_models:
+		for i, aa in enumerate(peptide.aminoacids):
+			aa.acarbon = model[i].alpha_zone
+			aa.set_axes(model[i].x_axis, model[i].y_axis, model[i].z_axis)
+		file.write(system.pdb(modelno=pdb_model_idx))
+		pdb_model_idx += 1
+	print "\n\n"
+	print "Best model scores:"
+	for i in xrange(model_count):
+		print "{} ({})".format(i, new_best_scores[i])
+	del scores
+	del peptide.aminoacids[:]
+	peptide = None
+	b = datetime.datetime.now()
+	print "Finished 750 iterations in {0:.4f} sec.".format((b - a).total_seconds() - time_wasted)
+	scoresfile.write("\n" + str((b - a).total_seconds() - time_wasted))
+	file.close()
+	scoresfile.close()
+	gc.collect()
+
+def run_simulation(directives, output):
+	"""This method takes the simulation directives found at the input path and performs the simulations."""
+	seq = None
+	sec_structs = None
+	runs = []
+	with open(directives, "r") as file:
+		lines = file.readlines()
+		seq = lines[0].strip()
+		del lines[0]
+		processing_runs = False
+		for line in lines:
+			if line[0] == "#": continue
+			if len(line.strip()) == 0:
+				processing_runs = True
+				continue
+			if processing_runs:
+				comps = line.strip().split(";")
+				runs.append([[y.strip() for y in x.split(",")] for x in comps])
+			else:
+				if not sec_structs: sec_structs = ""
+				sec_structs += line
+	sec_structs = sec_structs.strip()
+	print sec_structs
+
+	sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
+	weights = { "consec": 3.0, "secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 0.0 }
+	distributions = load_dists(sparc_dir, secondary=True, weights=weights)
+
+	for run in runs:
+		assert len(run) >= 2, "Run directive is invalid: {}".format(run)
+		if len(run[1]) > 1:
+			# run[1] must be the input paths, and run[2] must be the output path name
+			extra_args = { "sec_structs": sec_structs }
+			if len(run) > 3:
+				# Get extra parameters
+				for arg in run[3:]:
+					kv = arg.split("=")
+					extra_args[kv[0]] = kv[1]
+			range1 = [int(x) for x in run[0][0].split("-")]
+			range2 = [int(x) for x in run[0][1].split("-")]
+			segment_fold(sparc_dir, distributions, seq, range1, range2, output, outname=run[2][0], **extra_args)
+		else:
+			# run[1] must be the output path name
+			extra_args = { "sec_structs": sec_structs }
+			if len(run) > 2:
+				# Get extra parameters
+				for arg in run[2:]:
+					kv = arg.split("=")
+					extra_args[kv[0]] = kv[1]
+			range = [int(x) for x in run[0][0].split("-")]
+			simulate_fold(sparc_dir, distributions, seq, range, output, outname=run[1][0], **extra_args)
+
+if __name__ == '__main__':
+	args = sys.argv[1:]
+	input = None
+	output = None
+	i = 0
+	while i < len(args):
+		if args[i].lower() == "-i":
+			assert len(args) > i + 1, "Not enough arguments"
+			input = args[i + 1]
+			i += 2
+		elif args[i].lower() == "-o":
+			assert len(args) > i + 1, "Not enough arguments"
+			output = args[i + 1]
+			i += 2
+		else:
+			assert False, "Unexpected command-line argument {}".format(args[i])
+	run_simulation(input, output)

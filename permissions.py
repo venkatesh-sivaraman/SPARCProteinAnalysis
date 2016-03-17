@@ -318,7 +318,7 @@ class AASecondaryStructurePermissionsManager(PermissionsManager):
 				axes = aminoacid.axes_for_zone(alpha_zone, retro_zone)
 				if not axes: continue
 				hypo = aminoacid.hypothetical(PositionZone(alocation, axes[0], axes[1], axes[2]), True)
-				if (prior == True and not self.is_valid(hypo, reference_aa, structure_type, subtype)) or (prior == False and not self.is_valid(hypo, reference_aa, prior, structure_type, subtype)):
+				if not self.is_valid(hypo, reference_aa, structure_type, subtype, prior):
 					continue
 				ret.append(PositionZone(alocation, axes[0], axes[1], axes[2]))
 		return ret

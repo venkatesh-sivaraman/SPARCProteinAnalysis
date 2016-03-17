@@ -210,7 +210,7 @@ def aatypec(name):
 
 
 class AminoAcid(object):
-	'Represents a single amino acid.'
+	'''Represents a single amino acid. Important: amino acid tags between protein objects should not be close together.'''
 
 	def __init__(self, type, tag=0, acarbon=Point3D.zero(), nitrogen=Point3D.zero(), carbon=Point3D.zero(), sidechain=None):
 		self.mass = 0.0
@@ -360,7 +360,7 @@ class AminoAcid(object):
 		else:
 			print "Could not remove observer because {} is not being observed by anyone.".format(key)
 
-	def hypothetical(self, pz, calculate_atoms=False):
+	def hypothetical(self, pz, calculate_atoms=True):
 		aa = AminoAcid(self.type, self.tag, pz.alpha_zone, self.nitrogen, self.carbon, self.sidechain)
 		aa.set_axes(pz.x_axis, pz.y_axis, pz.z_axis, calculate_atoms=calculate_atoms)
 		return aa
@@ -534,6 +534,7 @@ class AminoAcid(object):
 		"""This function restores the last-saved location and orientation. Returns the location and orientation BEFORE the restoration."""
 		if not hasattr(self, "_savestack"): return
 		assert len(self._savestack) > 0, "Nothing to restore"
+		print "Restoring", self.tag
 		loc = self._savestack.pop()
 		curr = self.pz_representation()
 		self.acarbon = loc.alpha_zone
@@ -543,6 +544,10 @@ class AminoAcid(object):
 	def discard_save(self):
 		"""This function pops the last-saved location without restoring it."""
 		self._savestack.pop()
+
+	def clear_save(self):
+		"""Removes all save caches."""
+		del self._savestack[:]
 
 #MARK: Helpers
 
@@ -595,13 +600,23 @@ def rotate_segment_anchor(aminoacids, anchor, beginning=True):
 		anchor_aa = aminoacids[0]
 	else:
 		anchor_aa = aminoacids[-1]
+	if isinstance(anchor_aa, PositionZone):
+		aa = AminoAcid(amino_acid_alanine, -1, anchor_aa.alpha_zone)
+		aa.set_axes(anchor_aa.x_axis, anchor_aa.y_axis, anchor_aa.z_axis)
+		anchor_aa = aa
 	#Find all segment points in the local coordinate system of the original anchor_aa.
 	lcs_points = []
 	for aa in aminoacids:
-		lcs_points.append(anchor_aa.tolocal(aa.acarbon))
-		lcs_points.append(anchor_aa.tolocal(aa.acarbon.add(aa.i)))
-		lcs_points.append(anchor_aa.tolocal(aa.acarbon.add(aa.j)))
-		lcs_points.append(anchor_aa.tolocal(aa.acarbon.add(aa.k)))
+		if isinstance(aa, AminoAcid):
+			lcs_points.append(anchor_aa.tolocal(aa.acarbon))
+			lcs_points.append(anchor_aa.tolocal(aa.acarbon.add(aa.i)))
+			lcs_points.append(anchor_aa.tolocal(aa.acarbon.add(aa.j)))
+			lcs_points.append(anchor_aa.tolocal(aa.acarbon.add(aa.k)))
+		elif isinstance(aa, PositionZone):
+			lcs_points.append(anchor_aa.tolocal(aa.alpha_zone))
+			lcs_points.append(anchor_aa.tolocal(aa.alpha_zone.add(aa.x_axis)))
+			lcs_points.append(anchor_aa.tolocal(aa.alpha_zone.add(aa.y_axis)))
+			lcs_points.append(anchor_aa.tolocal(aa.alpha_zone.add(aa.z_axis)))
 	#Now create a hypothetical amino acid with the new anchor's orientation, and convert all those points into the global coordinate system from the hypothetical.
 	hypothetical = anchor_aa.hypothetical(anchor, False)
 	lcs_points = [hypothetical.toglobal(pt) for pt in lcs_points]
@@ -693,20 +708,27 @@ class AAHashTable(object):
 		return aa in bucket
 
 	def nearby_aa(self, aa, distance, consec=2):
+		"""You can also pass in a point for aa to check for simple proximity, with no consecutive/nonconsecutive considerations."""
 		if not aa: return []
-		bucket = self.buckets[self.hash_function(aa.acarbon)]
+		check_tags = False
+		if isinstance(aa, AminoAcid):
+			check_tags = True
+			pt = aa.acarbon
+		elif isinstance(aa, Point3D): pt = aa
+		else: return []
+		bucket = self.buckets[self.hash_function(pt)]
 		n = int(math.ceil(distance / box_dimension))
 		retVal = []
 		for z in xrange(-n, n + 1):
 			for y in xrange(-n, n + 1):
 				for x in xrange(-n, n + 1):
-					searchBucket = self.hash_function(Point3D(aa.acarbon.x + x * box_dimension,
-															  aa.acarbon.y + y * box_dimension,
-															  aa.acarbon.z + z * box_dimension))
+					searchBucket = self.hash_function(Point3D(pt.x + x * box_dimension,
+															  pt.y + y * box_dimension,
+															  pt.z + z * box_dimension))
 					for candidate in self.buckets[searchBucket]:
-						if candidate.tag == aa.tag:	continue;
+						if check_tags and candidate.tag == aa.tag:	continue;
 						firstDistance = aa.acarbon.distanceto(candidate.acarbon)
-						if firstDistance <= distance and (consec == 2 or ((consec == True or math.fabs(candidate.tag - aa.tag) > 1) and (consec == False or math.fabs(candidate.tag - aa.tag) == 1))):
+						if firstDistance <= distance and (not check_tags or consec == 2 or ((consec == True or math.fabs(candidate.tag - aa.tag) > 1) and (consec == False or math.fabs(candidate.tag - aa.tag) == 1))):
 							retVal.append(candidate)
 		return retVal
 

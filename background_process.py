@@ -8,17 +8,17 @@ if __name__ == '__main__':
 		if not os.path.isdir(join(root, struct)): continue
 		print struct
 		calculate_tm_scores(join(root, struct), join(output, struct + ".txt"))'''
-	#analyze_secondary_structure("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/secondary_structures", sample=1000)
-	dists = load_dists(concurrent=True, secondary=False, weights={"consec+secondary": 4.0, "short-range": 1.0, "nonconsec": 4.0, "medium": 5.0}) #{"consec": 3.0, "secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 0.0}, {"consec+secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 0.0}
-	mins = []
+	#analyze_secondary_structure("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/secondary_structures")
+	#dists = load_dists(concurrent=True, secondary=False, weights={"consec+secondary": 4.0, "short-range": 1.0, "nonconsec": 4.0, "medium": 5.0}) #{"consec": 3.0, "secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 0.0}, {"consec+secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 0.0}
+	#mins = []
 	#BPTI
 	#sec_structs = ["helix,5,2,7", None, None, "sheet,0,1,7", None, "sheet,0,1,7", None, None, "helix,1,1,5", "helix,1,1,5"]
 	#Insulin?
-	for i in [5678, 5678910]: #range(1,11) + [12, 34, 56, 78, 910, 1234, 5678, 5678910]:
+	'''for i in [5678, 5678910]: #range(1,11) + [12, 34, 56, 78, 910, 1234, 5678, 5678910]:
 		mins.append(min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg" + str(i) + ".pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native_seg" + str(i) + ".pdb", dists=dists)) #sec_structs=sec_structs[i - 1]
 	mins.append(min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg12345678910_back.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native.pdb", dists=dists))
 	for m in mins:
-		print m
+		print m'''
 	#batch_compare_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-decoys", dists, "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp_charmm.txt")
 	#score_structure_file("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg12-3.pdb", distributions)
 	#sparc_score_sequences("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/sequence_scores_charmm.txt", dists, charmm_scores=False)
@@ -43,7 +43,7 @@ if __name__ == '__main__':
 	#os.system("rm -rf \"{}\"".format(os.path.join(sparc_dir, "medium")))
 	#os.rename(os.path.join(sparc_dir, "medium-2"), os.path.join(sparc_dir, "medium"))
 	#generate_permissible_sequences("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/permissible_sequences")
-	#aggregate_permissible_sequences("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/permissible_sequences", cutoff=0.01)
+	aggregate_permissible_sequences("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/permissible_sequences", cutoff=0.005)
 	
 	#correlate_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/magainin_test_y.txt")
 	#correlate_charmm_sparc("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/magainin_test_yz.txt")

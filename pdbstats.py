@@ -285,7 +285,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			elif mode == sidechain_mode:
 				peptide.read_file(response, otheratoms=True)
 			elif mode == secondary_structure_mode:
-				peptide.read_file(response, secondary_structure=True, fillgaps=True)
+				peptide.read_file(response, secondary_structure=True, fillgaps=True, fillends=True)
 			del response
 		except Exception as e:
 			print "==========================Omit %r - %r" % (pdbid, e)
@@ -303,13 +303,18 @@ def block_stats_network(id, pdbids, output, mode='d'):
 							if not prev_aa or not aa:
 								prev_aa = aa
 								continue
-							pz = prev_aa.aa_position_zone(aa)
+							pz = prev_aa.tolocal(aa.acarbon).floor()
+							pz2 = aa.tolocal(prev_aa.acarbon).floor()
 							if sec_struct.type + str(strand.identifiers[0]) not in data:
 								continue
 							if pz in data[sec_struct.type + str(strand.identifiers[0])]:
 								data[sec_struct.type + str(strand.identifiers[0])][pz] += 1
 							else:
 								data[sec_struct.type + str(strand.identifiers[0])][pz] = 1
+							if pz2 in data[sec_struct.type + str(strand.identifiers[0])]:
+								data[sec_struct.type + str(strand.identifiers[0])][pz2] += 1
+							else:
+								data[sec_struct.type + str(strand.identifiers[0])][pz2] = 1
 							prev_aa = aa
 			else:
 				for i, aa in enumerate(peptide.aminoacids):
@@ -325,8 +330,13 @@ def block_stats_network(id, pdbids, output, mode='d'):
 						zone2 = aa.aa_position_zone(prev_aa).alpha_zone
 					
 						sec_struct = peptide.secondary_structure_aa(i)
+						do_next = True
+						do_prev = True
 						if mode == permissible_sequences_ss_mode:
 							if sec_struct:
+								if sec_struct[1].start > i - 1: continue
+								if sec_struct[1].start > i - 2: do_prev = False
+								if sec_struct[1].end < i + 1: do_next = False
 								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
 								if sec_name not in data: continue
 								data_lists = [data[sec_name]]
@@ -335,7 +345,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 							data_lists.append(data["all"])
 						else:
 							data_list = [data]
-						if peptide.aminoacids[i + 1]:
+						if peptide.aminoacids[i + 1] and do_next:
 							#Figure out the orientations between the next consecutive residue and this one
 							next_zone = aa.aa_position_zone(peptide.aminoacids[i + 1]).alpha_zone
 							for data_list in data_lists:
@@ -346,7 +356,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 								else:
 									data_list[(zone1, zone2)][next_zone] = 1
 				
-						if peptide.aminoacids[i - 2]:
+						if peptide.aminoacids[i - 2] and do_prev:
 							#Figure out the orientations between the last two consecutive residues
 							prev_zone = prev_aa.aa_position_zone(peptide.aminoacids[i - 2]).alpha_zone
 							for data_list in data_lists:
@@ -494,11 +504,7 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			out_path = join(output, struct_type + ".txt")
 			with open(out_path, "w") as f:
 				for pz, freq in data[struct_type].iteritems():
-					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " +
-							str(pz.x_axis.x) + ", " + str(pz.x_axis.y) + ", " + str(pz.x_axis.z) + "; " +
-							str(pz.y_axis.x) + ", " + str(pz.y_axis.y) + ", " + str(pz.y_axis.z) + "; " +
-							str(pz.z_axis.x) + ", " + str(pz.z_axis.y) + ", " + str(pz.z_axis.z) + "; " +
-							str(freq) + "\n")
+					f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
 
 def pool_block_stats_network(input, output, mode, (urls, i)=None):
 	if output:

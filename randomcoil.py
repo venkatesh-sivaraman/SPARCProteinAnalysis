@@ -44,7 +44,9 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 					if sec_struct and i > sec_struct[1].start:
 						candidates = struct_permissions.allowed_conformations(aminoacid, last_aa, sec_struct[0].type, sec_struct[1].identifiers[0], opposite_aa=second_last_aa)
 						if not len(candidates):
-							print "No permissible candidates with secondary structure"
+							candidates = struct_permissions.allowed_conformations(aminoacid, last_aa, sec_struct[0].type, sec_struct[1].identifiers[0])
+						if not len(candidates):
+							print "No permissible candidates with secondary structure", i, last_aa
 						else:
 							zone = random.choice(candidates)
 							current_pt = zone.alpha_zone

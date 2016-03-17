@@ -60,7 +60,7 @@ class FrequencyDistributionManager(DistributionManager):
 		else:
 			return 0
 	
-	def score(self, protein, data):
+	def score(self, protein, data, system=None):
 		"""For frequency distributions, pass in an array of hypothetical aminoacids."""
 		score = 0.0
 		consec = 2
@@ -68,7 +68,10 @@ class FrequencyDistributionManager(DistributionManager):
 		elif self.type == frequency_nonconsec_disttype: consec = 0
 		for aa in data:
 			if not aa: continue
-			nearby = protein.nearby_aa(aa, 10.0, consec=consec)
+			if system:
+				nearby = system.nearby_aa(aa, protein, 10.0, consec=consec)
+			else:
+				nearby = protein.nearby_aa(aa, 10.0, consec=consec)
 			for aa2 in nearby:
 				hypo = next((x for x in data if x and x.tag == aa2.tag), None)
 				if hypo is not None: aa2 = hypo
@@ -223,7 +226,7 @@ class MediumDistributionManager(DistributionManager):
 		for idx in xrange(AMINO_ACID_COUNT):
 			self.median_frequencies[idx] = sum(self.frequencies[idx])# / float(len([f for f in self.frequencies[idx] if f != 0]))
 
-	def score(self, protein, data, isolate=False):
+	def score(self, protein, data, isolate=False, system=None):
 		"""Pass in an array of amino acids for data."""
 		score = 0.0
 		density = 1.0 / (1.410 + 0.145 * math.exp(-protein.mass / 13000.0)) # 0.73
@@ -234,7 +237,10 @@ class MediumDistributionManager(DistributionManager):
 			if not aa: continue
 			tag = aacode(aa.type)
 			if tag >= AMINO_ACID_COUNT: tag = 0
-			nearby = protein.nearby_aa(aa, 10.0)
+			if system:
+				nearby = system.nearby_aa(aa, protein, 10.0)
+			else:
+				nearby = protein.nearby_aa(aa, 10.0)
 			if isolate:
 				coord = len([x for x in nearby if next((y for y in data if y and y.tag == x.tag), None)])
 			else:
