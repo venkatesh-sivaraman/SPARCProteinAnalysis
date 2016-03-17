@@ -1,3 +1,19 @@
+"""This module provides the necessary functions to conduct a segmented protein folding simulation. When calling this module as __main__, you should pass the path to a "simulation directive" file at -i, and a directory for depositing scores and structures at -o. The directive file should have the following format:
+	PROTEINSEQUENCE
+	secondary structures in CSV format
+	
+	range; outname
+	range; outname
+	range; outname
+	
+	range, range; inname, inname; outname
+	range, range; inname, inname; outname
+	
+	range, range; inname, inname; outname
+	
+	At each vacant line in the directive, a new multithreading pool will be started. This is helpful because some run groups may depend on the structures produced by earlier run groups.
+	The only extra parameter currently supported is n=#, which is added after an additional semicolon on the line and specifies the number of iterations to perform."""
+
 from distributions import *
 from molecular_systems import *
 from probsource import *
@@ -5,6 +21,7 @@ import random
 from main import load_dists
 import os, sys
 import numpy
+import multiprocessing
 from multiprocessing import Process, Queue
 import datetime, time
 
@@ -580,7 +597,8 @@ def segment_fold(dists, seq, range1, range2, infiles, output, sec_structs=None, 
 	del scores
 	del system
 	gc.collect()
-
+	
+	scoresfile.write("\n" + str((b - a).total_seconds()))
 	file.close()
 	scoresfile.close()
 
@@ -629,7 +647,7 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 	a = datetime.datetime.now()
 	time_wasted = 0.0
 	for i in xrange(n):
-		print "Iteration", i
+		print "{} ({})".format(i, outname)
 		seglen = segment_length(scores[-1] / len(peptide.aminoacids))
 		folding_iteration(system, [prob], seglen)
 		peptide.center()
@@ -702,7 +720,6 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 			else:
 				running_count = 0
 				last_score = newscore
-			print "{} ({})".format(newscore, running_count)
 			if newscore < new_best_scores[k]:
 				print "New best score"
 				new_best_scores[k] = newscore
@@ -731,11 +748,41 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 	scoresfile.close()
 	gc.collect()
 
+def start_run((run, seq, sec_structs)):
+	assert len(run) >= 2, "Run directive is invalid: {}".format(run)
+	sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
+	weights = { "consec": 3.0, "secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 0.0 }
+	distributions = load_dists(sparc_dir, concurrent=False, secondary=True, weights=weights)
+
+	if len(run[1]) > 1:
+		# run[1] must be the input paths, and run[2] must be the output path name
+		extra_args = { "sec_structs": sec_structs }
+		if len(run) > 3:
+			# Get extra parameters
+			for arg in run[3:]:
+				kv = arg.split("=")
+				extra_args[kv[0]] = kv[1]
+		range1 = [int(x) for x in run[0][0].split("-")]
+		range2 = [int(x) for x in run[0][1].split("-")]
+		infiles = [os.path.join(output, nm) for nm in run[1]]
+		segment_fold(sparc_dir, distributions, seq, range1, range2, infiles, output, outname=run[2][0], **extra_args)
+	else:
+		# run[1] must be the output path name
+		extra_args = { "sec_structs": sec_structs }
+		if len(run) > 2:
+			# Get extra parameters
+			for arg in run[2:]:
+				kv = arg.split("=")
+				extra_args[kv[0]] = kv[1]
+		range = [int(x) for x in run[0][0].split("-")]
+		simulate_fold(sparc_dir, distributions, seq, range, output, outname=run[1][0], **extra_args)
+
+
 def run_simulation(directives, output):
 	"""This method takes the simulation directives found at the input path and performs the simulations."""
 	seq = None
 	sec_structs = None
-	runs = []
+	run_groups = []
 	with open(directives, "r") as file:
 		lines = file.readlines()
 		seq = lines[0].strip()
@@ -744,44 +791,27 @@ def run_simulation(directives, output):
 		for line in lines:
 			if line[0] == "#": continue
 			if len(line.strip()) == 0:
-				processing_runs = True
+				if processing_runs:
+					run_groups.append([])
+				else:
+					processing_runs = True
+					run_groups.append([])
 				continue
 			if processing_runs:
 				comps = line.strip().split(";")
-				runs.append([[y.strip() for y in x.split(",")] for x in comps])
+				run_groups[-1].append([[y.strip() for y in x.split(",")] for x in comps])
 			else:
 				if not sec_structs: sec_structs = ""
 				sec_structs += line
 	sec_structs = sec_structs.strip()
 	print sec_structs
 
-	sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
-	weights = { "consec": 3.0, "secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 0.0 }
-	distributions = load_dists(sparc_dir, secondary=True, weights=weights)
-
-	for run in runs:
-		assert len(run) >= 2, "Run directive is invalid: {}".format(run)
-		if len(run[1]) > 1:
-			# run[1] must be the input paths, and run[2] must be the output path name
-			extra_args = { "sec_structs": sec_structs }
-			if len(run) > 3:
-				# Get extra parameters
-				for arg in run[3:]:
-					kv = arg.split("=")
-					extra_args[kv[0]] = kv[1]
-			range1 = [int(x) for x in run[0][0].split("-")]
-			range2 = [int(x) for x in run[0][1].split("-")]
-			segment_fold(sparc_dir, distributions, seq, range1, range2, output, outname=run[2][0], **extra_args)
-		else:
-			# run[1] must be the output path name
-			extra_args = { "sec_structs": sec_structs }
-			if len(run) > 2:
-				# Get extra parameters
-				for arg in run[2:]:
-					kv = arg.split("=")
-					extra_args[kv[0]] = kv[1]
-			range = [int(x) for x in run[0][0].split("-")]
-			simulate_fold(sparc_dir, distributions, seq, range, output, outname=run[1][0], **extra_args)
+	for i, group in enumerate(run_groups):
+		print "Starting run group", i
+		pool = multiprocessing.Pool(processes=2, maxtasksperchild=1)
+		pool.map(start_run, [(run, seq, sec_structs) for run in group])
+		pool.close()
+		pool.join()
 
 if __name__ == '__main__':
 	args = sys.argv[1:]
