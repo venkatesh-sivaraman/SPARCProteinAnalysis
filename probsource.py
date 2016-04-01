@@ -302,7 +302,7 @@ class AAProbabilitySource(ProbabilitySource):
 		
 		self.weights = { "distance": distance_weight, "bond" : bond_weight, "angle_distance" : angle_distance_weight, "comparison" : comparison_weight, "anchor" : anchor_weight }
 		self.mode = psource_erratic_mode
-		self.erratic_proximity = 0.6
+		self.erratic_proximity = 4.0
 	
 	def iter_ensemble_pivot(self, aminoacids, anchor, prior=True, proximity=1.0, maxsamples=-1, connected=False):
 		"""This new method (2/6/15) iterates the possible conformations created by pivoting a segment around the anchor (should be an AminoAcid). This function does not take into account the connectivity with the next unmutated segment. However, the connected parameter specifies whether the anchor is connected to the protein on the other side. This helps to produce realistic angles during a series of pivots."""
@@ -355,7 +355,7 @@ class AAProbabilitySource(ProbabilitySource):
 		probabilities = []
 		current_score = sum(d.score(self.protein, aminoacids, system=self.system) for d in self.distributions)
 		if self.mode == psource_erratic_mode:
-			proximity = self._randomization_margin(current_score / len(aminoacids)) * 4.0
+			proximity = self._randomization_margin(current_score / len(aminoacids)) * self.erratic_proximity
 			step = proximity
 		else:
 			proximity = 0.1
@@ -699,45 +699,48 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 	
 	def load_cluster_conformations(self, cluster_num, path, n=25):
 		'''This new function loads the conformations for one of the segments of the simulation. If the SPARC scores are stored in the comment lines of the multi-model PDB file you pass in at path, they will be read in with the format "SPARC xxxx". Otherwise, the SPARC scores will be computed within this method.'''
-		confs = []
 
+		curr_score = 0.0
+		peptide = Polypeptide()
+		model_count = n
+		confs = [[0, 10000000, 0] for i in xrange(model_count)]
+		backups = [[0, 10000000, 0] for i in xrange(model_count)]
+
+		for modelno in peptide.iter_models(path):
+			if curr_score == 0.0:
+				curr_score = sum(d.score(peptide, peptide.aminoacids) for d in self.distributions)
+			for k in xrange(model_count):
+				if curr_score < confs[k][1] * 1.1:
+					for m in reversed(xrange(max(k, 1), model_count)):
+						confs[m] = confs[m - 1]
+					confs[k] = [modelno, curr_score, score_to_probability(curr_score)]
+					break
+				elif curr_score < confs[k][1]:
+					break
+			for k in xrange(model_count):
+				if curr_score < backups[k][1]:
+					for m in reversed(xrange(max(k, 1), model_count)):
+						backups[m] = backups[m - 1]
+					backups[k] = [modelno, curr_score, score_to_probability(curr_score)]
+					break
+
+			#confs.append([modelno, curr_score, score_to_probability(curr_score)])
+			if modelno % 50 == 0:
+				print "Loaded", modelno, "conformations..."
+			curr_score = 0.0
+		
+		for i, c in enumerate(confs):
+			if c[1] > 0.0:
+				confs[i] = backups[0]
+				del backups[0]
+		confs2 = sorted(confs, key=lambda x: x[1])
+		#Go back and read through the file, saving the conformations that we noted above
+		last_read = 0
+		modelno = 0
+		peptide = None
 		with open(path, 'r') as file:
 			lines = file.readlines()
-			last_read = 0
-			curr_score = 0.0
-			peptide = None
 			cache = None
-			modelno = 0
-			for i, l in enumerate(lines):
-				if "SPARC" in l:
-					curr_score = float(l.split()[1])
-				elif "MODEL" in l:
-					modelno = int(l[5:].strip())
-				elif "ENDMDL" in l:
-					if not peptide:
-						peptide = Polypeptide()
-					try:
-						peptide.read_file(lines[last_read : i + 1], cache_aas=cache)
-					except AssertionError as e:
-						print "Assertion for model {}: {}".format(i, e)
-						curr_score = 0.0
-						last_read = i + 1
-						del peptide.aminoacids[:]
-						peptide.hashtable = None
-						continue
-					if curr_score == 0.0:
-						curr_score = sum(d.score(peptide, peptide.aminoacids) for d in self.distributions)
-					confs.append([modelno, curr_score, score_to_probability(curr_score)])
-					if len(confs) % 50 == 0:
-						print "Loaded", len(confs), "conformations..."
-					curr_score = 0.0
-					last_read = i + 1
-					cache = peptide.aminoacids
-			confs2 = sorted(confs, key=lambda x: x[1])[:min(int(len(confs) * 0.05), n)]
-			#Go back and read through the file again, saving the conformations that we noted above
-			last_read = 0
-			modelno = 0
-			peptide = None
 			for i, l in enumerate(lines):
 				if "MODEL" in l:
 					modelno = int(l[5:].strip())

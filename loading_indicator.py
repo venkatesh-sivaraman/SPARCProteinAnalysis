@@ -26,7 +26,7 @@ def _update_loading_indicator():
 			sys.stdout.write(text)
 			sys.stdout.flush()
 	else:
-		text = ConsoleColor.darkcyan + "{:.0f}%".format(float(_loading_progress) / _total_loading_amount * 100.0) + ConsoleColor.end
+		text = ConsoleColor.darkcyan + "{:.0f}% ".format(float(_loading_progress) / _total_loading_amount * 100.0) + ConsoleColor.end
 		if not _has_loading_indicator:
 			text = "\r" + text
 		sys.stdout.write(text)

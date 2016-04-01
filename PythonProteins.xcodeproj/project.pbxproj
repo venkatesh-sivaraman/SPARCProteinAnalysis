@@ -30,10 +30,12 @@
 		969D350E1C92E962000889F4 /* goap.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = goap.py; sourceTree = "<group>"; };
 		96A448A319C3A80200C4991A /* main.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = main.py; sourceTree = "<group>"; };
 		96B6AF041C8A4A100004B68F /* loading_indicator.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = loading_indicator.py; sourceTree = "<group>"; };
+		96CA6AB11CA3537D0036E642 /* score.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = score.py; sourceTree = "<group>"; };
 		96CCF6951C9AF9BF00FA2A7C /* gensparc.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = gensparc.py; sourceTree = "<group>"; };
 		96D2926C1C5B0B5F002E842F /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		96D2926D1C5B124C002E842F /* secondary_structure.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = secondary_structure.py; sourceTree = "<group>"; };
 		96DBD89A1BE161C500CA76A1 /* sparc_distribution.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = sparc_distribution.py; sourceTree = "<group>"; };
+		96DE2EF21CA0AE7E000D5DF1 /* validate.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = validate.py; sourceTree = "<group>"; };
 		96E3E17C1C6D8B2B00A22AF3 /* reference_state.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = reference_state.py; sourceTree = "<group>"; };
 		96EF9AC61C91C61800897BB5 /* rwplus.py */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.script.python; path = rwplus.py; sourceTree = "<group>"; };
 		96FD853E1C797FCF0023C712 /* simulation_daemon.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = simulation_daemon.plist; sourceTree = "<group>"; };
@@ -97,6 +99,8 @@
 				96582F4B1C99FB1D00A9FB95 /* decoys.py */,
 				96CCF6951C9AF9BF00FA2A7C /* gensparc.py */,
 				9652F9291A3E261C00A37E22 /* folding.py */,
+				96DE2EF21CA0AE7E000D5DF1 /* validate.py */,
+				96CA6AB11CA3537D0036E642 /* score.py */,
 				96FD853E1C797FCF0023C712 /* simulation_daemon.plist */,
 				9655187D1A2B950100775578 /* proteinmath.pyx */,
 				969A68391C83BA090012D6FF /* setup.py */,

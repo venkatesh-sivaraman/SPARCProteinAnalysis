@@ -20,6 +20,9 @@ secondary_structure_mode = 'ss' # Only supported by block_stats_network
 permissible_sequences_mode = 'ps' # Only supported by block_stats_network
 permissible_sequences_ss_mode = 'pss'
 score_sequences_mode = 'scs' # Only supported by block_stats_network
+both_orientations_mode = 'bo'
+num_interacting_mode = 'ni'
+random_coil_mode = 'rc'
 
 def block_stats(id, mode, input, urls, output):
 	"""Calculates a block of PDB statistics based on the mode selected in the mode parameter. Modes are available above."""
@@ -112,7 +115,7 @@ def pool_block_stats(input, output, mode, (urls, i)=None):
 #12/11/14 6:48 am: starting all blocks, consecutive
 
 def pool_initializer():
-	print "Starting", multiprocessing.current_process().name
+	pass #print "Starting", multiprocessing.current_process().name
 
 def calculate_pdb_stats(input, output, mode=nonconsecutive_mode):
 	
@@ -212,7 +215,7 @@ def calculate_amino_acid_counts(input):
 
 import requests, time, numpy, urllib2, sys
 
-def block_stats_network(id, pdbids, output, mode='d'):
+def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 	"""Calculates a block of PDB statistics, and puts all the data into a directory specified by output. For mode, you may pass default_network_mode, sidechain_mode, or secondary_structure_mode."""
 	
 	if mode == default_network_mode:
@@ -241,6 +244,24 @@ def block_stats_network(id, pdbids, output, mode='d'):
 				secondary_struct_sheet + "-1" : {}, "default": {}, "all": {}
 			}
 		}
+	elif mode == num_interacting_mode:
+		data = [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)]
+	elif mode == both_orientations_mode:
+		data = {
+			"nonconsec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"short-range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"consec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"consec+secondary" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"secondary" : {
+				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+				secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+				secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+				secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+				secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+				secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+				secondary_struct_sheet + "-1" : {}
+			}
+		}
 	elif mode == sidechain_mode:
 		data = [{} for i in range(AMINO_ACID_COUNT)]
 	elif mode == secondary_structure_mode:
@@ -266,14 +287,31 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
 			secondary_struct_sheet + "-1" : {}, "default": {}, "all": {}
 		}
+	elif mode == random_coil_mode:
+		data = {
+			secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+			secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+			secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+			secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+			secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+			secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+			secondary_struct_sheet + "-1" : {}, "default": {}, "all": {}
+		}
 	
-	def add_to_data(aa, aa2, tag1, tag2, key):
+	def add_to_data(aa, aa2, tag1, tag2, key, both=False):
 		if tag1 < 22 and tag2 < 22:
 			pz = aa.aa_position_zone(aa2).alpha_zone
-			if pz in data[key][tag1][tag2]:
-				data[key][tag1][tag2][pz] += 1
+			if both:
+				pz2 = aa2.aa_position_zone(aa).alpha_zone
+				if (pz, pz2) in data[key][tag1][tag2]:
+					data[key][tag1][tag2][(pz, pz2)] += 1
+				else:
+					data[key][tag1][tag2][(pz, pz2)] = 1
 			else:
-				data[key][tag1][tag2][pz] = 1
+				if pz in data[key][tag1][tag2]:
+					data[key][tag1][tag2][pz] += 1
+				else:
+					data[key][tag1][tag2][pz] = 1
 			return True
 		else:
 			return False
@@ -289,12 +327,16 @@ def block_stats_network(id, pdbids, output, mode='d'):
 			response = r.text.split('\n')
 			if len(response) <= 1:
 				assert False, "Got one-liner for PDB {}: {}".format(pdbid, r.text)
-			if mode == default_network_mode or mode == permissible_sequences_mode or mode == permissible_sequences_ss_mode:
+			if mode == default_network_mode or mode == permissible_sequences_mode or mode == permissible_sequences_ss_mode or mode == both_orientations_mode:
 				peptide.read_file(response, secondary_structure=True, fillgaps=True)
 			elif mode == sidechain_mode:
 				peptide.read_file(response, otheratoms=True)
 			elif mode == secondary_structure_mode:
 				peptide.read_file(response, secondary_structure=True, fillgaps=True, fillends=True)
+			elif mode == random_coil_mode:
+				peptide.read_file(response, secondary_structure=True)
+			else:
+				peptide.read_file(response, secondary_structure=True, fillgaps=True)
 			del response
 		except Exception as e:
 			print "==========================Omit %r - %r" % (pdbid, e)
@@ -325,6 +367,69 @@ def block_stats_network(id, pdbids, output, mode='d'):
 							else:
 								data[sec_struct.type + str(strand.identifiers[0])][pz2] = 1
 							prev_aa = aa
+			elif mode == num_interacting_mode:
+				#For each amino acid type, the dictionary will have the floored volume as its key, and a list of [observed interactions consec, obs short-range, obs long-range, possible interactions consec, possible short-range, possible long-range] as the value.
+				volume = math.floor(peptide.volume())
+				for aa in peptide.aminoacids:
+					if aa == None: continue
+					tag1 = aacode(aa.type)
+					#Find possible interactions as well as actually contacting residues
+					for aa2 in peptide.aminoacids:
+						if not aa2: continue
+						tag2 = aacode(aa2.type)
+						if tag1 > tag2 or (tag1 == tag2 and aa.tag > aa2.tag): continue
+						try:
+							if volume not in data[tag1][tag2]:
+								data[tag1][tag2][volume] = [0, 0, 0, 0, 0, 0]
+							idx = 0
+							if math.fabs(aa.tag - aa2.tag) == 1:
+								idx = 0
+							elif math.fabs(aa.tag - aa2.tag) <= 5:
+								idx = 1
+							else:
+								idx = 2
+							
+							if aa.acarbon.distanceto(aa2.acarbon) <= 10.0:
+								data[tag1][tag2][volume][idx] += 1
+							data[tag1][tag2][volume][idx + 3] += 1
+						except:
+							print "Partial omit -", pdbid
+			elif mode == random_coil_mode:
+				iterations = 100
+				if "iterations" in kwargs: iterations = kwargs["iterations"]
+				assert "permissions" in kwargs, "No permissions object provided to block stats. Use the keyword argument 'permissions'."
+				permissions = kwargs["permissions"]
+				sec_struct_permissions = None
+				if "sec_struct_permissions" in kwargs: sec_struct_permissions = kwargs["sec_struct_permissions"]
+				for n in xrange(iterations):
+					#if n == iterations / 2: print n, "of", iterations, "iterations"
+					worked = peptide.randomcoil(permissions=permissions, struct_permissions=sec_struct_permissions, repeat_cutoff=10)
+					if not worked: continue
+					for i, aa in enumerate(peptide.aminoacids):
+						r = peptide.nearby_aa(aa, 10.0, i)
+						for j, aa2 in enumerate(r):
+							pz = aa.aa_position_zone(aa2).alpha_zone
+							separation = min(int(math.fabs(j - i)), 6) - 1
+							sec_struct = peptide.secondary_structure_aa(i)
+							sec_struct_2 = peptide.secondary_structure_aa(j)
+							if sec_struct and sec_struct_2 and sec_struct[1].start == sec_struct_2[1].start:
+								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
+								if pz in data[sec_name]:
+									data[sec_name][pz][separation] += 1
+								else:
+									data[sec_name][pz] = [0 for i in xrange(1, 7)]
+									data[sec_name][pz][separation] = 1
+							else:
+								if pz in data["default"]:
+									data["default"][pz][separation] += 1
+								else:
+									data["default"][pz] = [0 for i in xrange(1, 7)]
+									data["default"][pz][separation] = 1
+							if pz in data["all"]:
+								data["all"][pz][separation] += 1
+							else:
+								data["all"][pz] = [0 for i in xrange(1, 7)]
+								data["all"][pz][separation] = 1
 			else:
 				for i, aa in enumerate(peptide.aminoacids):
 					if aa == None: continue
@@ -425,7 +530,48 @@ def block_stats_network(id, pdbids, output, mode='d'):
 						elif not reported:
 							print "Partial omit %r (unknown aa)." % pdbid
 							reported = True
-				
+
+					if mode == both_orientations_mode:
+						#Nonconsec
+						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=False)
+						for aa2 in r:
+							tag2 = aacode(aa2.type)
+							if tag1 > tag2 or (tag1 == tag2 and aa.tag > aa2.tag): continue
+							key = "nonconsec"
+							if math.fabs(aa2.tag - aa.tag) <= 5:
+								key = "short-range"
+							if not add_to_data(aa, aa2, tag1, tag2, key, both=True):
+								print "Partial omit %r (unknown aa)." % pdbid
+								reported = True
+								break
+							
+						#Consec
+						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=True)
+						for aa2 in r:
+							tag2 = aacode(aa2.type)
+							if tag1 > tag2 or (tag1 == tag2 and aa.tag > aa2.tag): continue
+							key = "consec"
+							sec_struct = peptide.secondary_structure_aa(i)
+							if sec_struct:
+								key = "secondary"
+								pz = aa.aa_position_zone(aa2).alpha_zone
+								pz2 = aa2.aa_position_zone(aa).alpha_zone
+								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
+								if sec_name in data[key]:
+									if (pz, pz2) in data[key][sec_name]:
+										data[key][sec_name][(pz, pz2)] += 1
+									else:
+										data[key][sec_name][(pz, pz2)] = 1
+							else:
+								if not add_to_data(aa, aa2, tag1, tag2, key, both=True):
+									print "Partial omit %r (unknown aa)." % pdbid
+									reported = True
+									break
+							if not add_to_data(aa, aa2, tag1, tag2, "consec+secondary", both=True):
+								print "Partial omit %r (unknown aa)." % pdbid
+								reported = True
+								break
+
 					if mode == sidechain_mode:
 						if tag1 >= 22 and not reported:
 							print "Partial omit %r (unknown aa)." % pdbid
@@ -449,17 +595,21 @@ def block_stats_network(id, pdbids, output, mode='d'):
 	if output is None: return
 	if not os.path.exists(output): os.mkdir(output)
 
-	if mode == default_network_mode:
-		def write_data(key):
-			write_path = join(output, key)
-			if not os.path.exists(write_path): os.mkdir(write_path)
-			for i in range(AMINO_ACID_COUNT):
-				for j in range(AMINO_ACID_COUNT):
-					f = open(join(write_path, "%d-%d.txt" % (i, j)), 'w')
+	def write_data(key, twopzs=False):
+		write_path = join(output, key)
+		if not os.path.exists(write_path): os.mkdir(write_path)
+		for i in range(AMINO_ACID_COUNT):
+			for j in range(AMINO_ACID_COUNT):
+				f = open(join(write_path, "%d-%d.txt" % (i, j)), 'w')
+				if twopzs:
+					for pzs, freq in data[key][i][j].iteritems():
+						f.write(str(pzs[0].x) + ", " + str(pzs[0].y) + ", " + str(pzs[0].z) + ", " + str(pzs[1].x) + ", " + str(pzs[1].y) + ", " + str(pzs[1].z) + "; " + str(freq) + "\n")
+				else:
 					for pz, freq in data[key][i][j].iteritems():
 						f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
-					f.close()
+				f.close()
 
+	if mode == default_network_mode:
 		write_data("nonconsec")
 		write_data("consec")
 		write_data("short-range")
@@ -493,6 +643,37 @@ def block_stats_network(id, pdbids, output, mode='d'):
 					for pz, freq in data["permissible"][sec_struct_type][(zone1, zone2)].iteritems():
 						file.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
 					file.write("\n")
+
+	elif mode == random_coil_mode:
+		for sec_struct_type in data:
+			f = open(join(output, sec_struct_type + ".txt"), "w")
+			for pz, freqs in data[sec_struct_type].iteritems():
+				freqstr = ""
+				for freq in freqs: freqstr += str(freq) + ","
+				freqstr = freqstr[:-1]
+				f.write("{:.0f},{:.0f},{:.0f};{}\n".format(pz.x, pz.y, pz.z, freqstr))
+			f.close()
+	elif mode == both_orientations_mode:
+		write_data("nonconsec", twopzs=True)
+		write_data("consec", twopzs=True)
+		write_data("short-range", twopzs=True)
+		write_data("consec+secondary", twopzs=True)
+		
+		#Secondary
+		write_path = join(output, "secondary")
+		if not os.path.exists(write_path): os.mkdir(write_path)
+		for sec_struct_type in data["secondary"]:
+			f = open(join(write_path, sec_struct_type + ".txt"), 'w')
+			for pzs, freq in data["secondary"][sec_struct_type].iteritems():
+				f.write(str(pzs[0].x) + ", " + str(pzs[0].y) + ", " + str(pzs[0].z) + ", " + str(pzs[1].x) + ", " + str(pzs[1].y) + ", " + str(pzs[1].z) + "; " + str(freq) + "\n")
+			f.close()
+	elif mode == num_interacting_mode:
+		for i in range(AMINO_ACID_COUNT):
+			for j in range(AMINO_ACID_COUNT):
+				f = open(join(output, "%d-%d.txt" % (i, j)), 'w')
+				for volume, counts in data[i][j].iteritems():
+					f.write("{};{},{},{},{},{},{}\n".format(volume, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5]))
+				f.close()
 
 	elif mode == permissible_sequences_mode:
 		write_path = join(output, "permissible_sequences.txt")
@@ -542,7 +723,7 @@ def pool_block_stats_network(input, output, mode, (urls, i)=None):
 	time.sleep(60)
 
 
-def calculate_pdb_stats_network(input, output):
+def calculate_pdb_stats_network(input, output, mode=default_network_mode):
 	"""Calculates pdb stats by retrieving files with the PDB IDs listed in the newline-separated input file."""
 	
 	if output is not None and not os.path.exists(output): os.mkdir(output)
@@ -553,16 +734,29 @@ def calculate_pdb_stats_network(input, output):
 	block_size = 50
 	i = 0
 	blocks = int(math.ceil(len(contents) / block_size))
-	print blocks, "blocks"
+	if mode == default_network_mode:
+		time = 3.0 * len(contents)
+		time_unit = "seconds"
+		if time > 60:
+			time /= 60.0
+			time_unit = "minutes"
+			if time > 60:
+				time /= 60.0
+				time_unit = "hours"
+		print "NOTE: The calculation process will be performed in 50-structure blocks. Generally this takes roughly 3 seconds per structure, so with {} blocks your job will likely take about {:.2f} {}.".format(blocks, time, time_unit)
 	
 	pool = multiprocessing.Pool(processes=3, initializer=pool_initializer, maxtasksperchild=1)
-	partial_block_stats = partial(pool_block_stats_network, input, output, default_network_mode)
+	partial_block_stats = partial(pool_block_stats_network, input, output, mode)
 	zipped = [(contents[block_size * k : min(block_size * (k + 1), len(contents))], k) for k in xrange(i, blocks)]
 	#print zipped
 	pool.map(partial_block_stats, zipped)
 	pool.close()
 	pool.join()
 	print "done"
+
+def num_possible_interacting(pdbsample, output):
+	"""Writes the number of possible interactions each amino acid pair could have in the PDB sample."""
+	calculate_pdb_stats_network(pdbsample, output, mode=num_interacting_mode)
 
 #MARK: Structure pairs
 
@@ -671,6 +865,39 @@ def sparc_score_sequences(pdb_path, output, distributions, stop_pt=None, charmm_
 	del peptide
 	if charmm_scores:
 		shutil.rmtree(tmpdir)
+
+def pool_pdb_reference_state(input, output, mode, iterations, permissions, sec_struct_permissions, (urls, i)=None):
+	if output:
+		if os.path.exists(join(output, str(i))): return
+		block_stats_network(i, urls, join(output, str(i)), mode=mode, iterations=iterations, permissions=permissions, sec_struct_permissions=sec_struct_permissions)
+	else:
+		block_stats_network(i, urls, None, mode=mode, iterations=iterations, permissions=permissions, sec_struct_permissions=sec_struct_permissions)
+	print "Done with batch", i
+	gc.collect()
+	time.sleep(60)
+
+
+
+def pdb_reference_state(input, output, permissions, sec_struct_permissions, iterations=1):
+	"""Calculates the SPARC reference state by retrieving files with the PDB IDs listed in the newline-separated input file. Each structure undergoes a default of 20 random coils, and the orientations found in each structure are recorded."""
+	
+	if output is not None and not os.path.exists(output): os.mkdir(output)
+	
+	with open(input, 'r') as file:
+		contents = file.readlines()
+	#contents = numpy.random.choice(contents, 500)
+	block_size = 5
+	i = 0
+	blocks = int(math.ceil(len(contents) / block_size))
+	
+	pool = multiprocessing.Pool(processes=3, initializer=pool_initializer, maxtasksperchild=1)
+	partial_block_stats = partial(pool_pdb_reference_state, input, output, random_coil_mode, iterations, permissions, sec_struct_permissions)
+	zipped = [(contents[block_size * k : min(block_size * (k + 1), len(contents))], k) for k in xrange(i, 1)] #blocks
+	#print zipped
+	map(partial_block_stats, zipped)
+	pool.close()
+	pool.join()
+	print "done"
 
 #MARK: Secondary Structure Analysis
 

@@ -226,11 +226,10 @@ class MediumDistributionManager(DistributionManager):
 		for idx in xrange(AMINO_ACID_COUNT):
 			self.median_frequencies[idx] = sum(self.frequencies[idx])# / float(len([f for f in self.frequencies[idx] if f != 0]))
 
-	def score(self, protein, data, isolate=False, system=None):
+	def score(self, protein, data, isolate=False, system=None, zero_value=0.01):
 		"""Pass in an array of amino acids for data."""
 		score = 0.0
-		density = 1.0 / (1.410 + 0.145 * math.exp(-protein.mass / 13000.0)) # 0.73
-		volume = (density * 1e24) / (6.02e23) * protein.mass
+		volume = protein.volume()
 		if volume <= 4000.0 / 3.0 * math.pi:
 			return score
 		for aa in data:
@@ -271,7 +270,7 @@ class MediumDistributionManager(DistributionManager):
 				f0 *= float(math.factorial(N - 1) / (math.factorial(coord) * math.factorial(N - coord - 1)))
 			else:
 				f0 = self.median_frequencies[tag]
-			if f <= 0: f = 0.01
+			if f <= 0: f = zero_value
 			subscore = -math.log(f / f0)
 			score += subscore
 		return score * self.weight

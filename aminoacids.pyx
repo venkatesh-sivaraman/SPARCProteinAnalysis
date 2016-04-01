@@ -208,6 +208,54 @@ def aatypec(name):
 	else:
 		return ""
 
+def aacodec(name):
+	name = name.upper()
+	if (name == amino_acid_alanine):
+		return "A"
+	elif (name == amino_acid_arginine):
+		return "R"
+	elif (name == amino_acid_asparagine):
+		return "N"
+	elif (name == amino_acid_asparagine_or_aspartic_acid):
+		return "B"
+	elif (name == amino_acid_aspartic_acid):
+		return "D"
+	elif (name == amino_acid_cysteine):
+		return "C"
+	elif (name == amino_acid_glutamic_acid):
+		return "E"
+	elif (name == amino_acid_glutamine):
+		return "Q"
+	elif (name == amino_acid_glutamine_or_glutamic_acid):
+		return "Z"
+	elif (name == amino_acid_glycine):
+		return "G"
+	elif (name == amino_acid_histidine):
+		return "H"
+	elif (name == amino_acid_isoleucine):
+		return "I"
+	elif (name == amino_acid_leucine):
+		return "L"
+	elif (name == amino_acid_lysine):
+		return "K"
+	elif (name == amino_acid_methionine):
+		return "M"
+	elif (name == amino_acid_phenylalanine):
+		return "F"
+	elif (name == amino_acid_proline):
+		return "P"
+	elif (name == amino_acid_serine):
+		return "S"
+	elif (name == amino_acid_threonine):
+		return "T"
+	elif (name == amino_acid_tryptophan):
+		return "W"
+	elif (name == amino_acid_tyrosine):
+		return "Y"
+	elif (name == amino_acid_valine):
+		return "V"
+	else:
+		return ""
 
 class AminoAcid(object):
 	'''Represents a single amino acid. Important: amino acid tags between protein objects should not be close together.'''

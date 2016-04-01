@@ -22,17 +22,24 @@ class Polypeptide(object):
 				if aa:
 					self.mass += aa.mass
 	
-	def randomcoil(self, seq, permissions=None, struct_permissions=None):
-		del self.hashtable
+	def randomcoil(self, seq=None, permissions=None, struct_permissions=None, repeat_cutoff=100):
+		"""Generates a random 3D structure for the sequence you provide. If seq is None, this method tries to use the sequence of amino acids that's already existing in the protein."""
+		self.hashtable.clear()
 		self.mass = 0.0
 		self.hashtable = AAHashTable()
+		if not seq:
+			seq = ""
+			for aa in self.aminoacids:
+				seq += aacodec(aa.type)
 		if len(self.secondary_structures) and struct_permissions:
-			self.aminoacids = generate_randomcoil(seq, permissions=permissions, secondary_structures=self.secondary_structures, struct_permissions=struct_permissions)
+			new_aas = generate_randomcoil(seq, permissions=permissions, secondary_structures=self.secondary_structures, struct_permissions=struct_permissions, repeat_cutoff=repeat_cutoff, cache_aas=self.aminoacids)
 		else:
-			self.aminoacids = generate_randomcoil(seq, permissions)
+			new_aas = generate_randomcoil(seq, permissions, repeat_cutoff=repeat_cutoff, cache_aas=self.aminoacids)
+		if new_aas: self.aminoacids = new_aas
 		for aa in self.aminoacids:
 			if aa: self.mass += aa.mass
 			self.hashtable.add(aa)
+		return new_aas is not None
 	
 	def add_aa(self, aa):
 		self.aminoacids.append(aa)
@@ -90,11 +97,14 @@ class Polypeptide(object):
 				ret += "N\t%.4f\t%.4f\t%.4f\n" % (aa.nitrogen.x, aa.nitrogen.y, aa.nitrogen.z)
 			return ret
 
-	def pdb(self, modelno=1, chain=0):
+	def pdb(self, modelno=1, chain=0, range=None):
 		ret = "MODEL        %d\n" % modelno
 		idx = 1
 		chain_letters = string.ascii_uppercase
-		for i, aa in enumerate(self.aminoacids):
+		enum_array = self.aminoacids
+		if range:
+			enum_array = self.aminoacids[range[0] - 1 : range[1]]
+		for i, aa in enumerate(enum_array):
 			aa.nitrogen = aa.toglobal(Point3D(NITROGEN_BOND_LENGTH, math.pi + math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
 			aa.carbon = aa.toglobal(Point3D(CARBON_BOND_LENGTH, math.pi - math.acos(-1.0 / 2.0) / 2.0, math.acos(-1.0 / 3.0)).tocartesian())
 			ret += "ATOM  {0:>5}  N   {1} {2}{3:>4}    {4:>8}{5:>8}{6:>8}\n".format(idx, aa.type, chain_letters[chain], i + 1, "%.3f" % aa.nitrogen.x, "%.3f" % aa.nitrogen.y, "%.3f" % aa.nitrogen.z)
@@ -134,6 +144,11 @@ class Polypeptide(object):
 		print "Radius of gyration:", rg
 		return rg
 
+	def volume(self):
+		density = 1.0 / (1.410 + 0.145 * math.exp(-self.mass / 13000.0)) # 0.73
+		volume = (density * 1e24) / (6.02e23) * self.mass
+		return volume
+	
 	def center(self):
 		"""Center the polypeptide at the origin of the global coordinate system."""
 		center = Point3D.zero()
@@ -145,7 +160,7 @@ class Polypeptide(object):
 			aa.nitrogen = aa.nitrogen.subtract(center)
 			aa.carbon = aa.carbon.subtract(center)
 
-	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False, cache_aas=None):
+	def read_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False, cache_aas=None, range=None):
 		"""Pass in a file or file-like object to read. Set checkgaps to True to return a list of missing amino acid indices (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids)."""
 		gaps = []
 		current_aa = None
@@ -171,30 +186,38 @@ class Polypeptide(object):
 		
 			if secondary_structure:
 				if line.find('HELIX') == 0:
-					start_seq = int(line[22:25])
-					end_seq = int(line[34:37])
+					start_seq = int(line[22:25]) - 1
+					end_seq = int(line[34:37]) - 1
 					type = line[39:41]
 					if type[1] in "1234567890":
 						type = int(type)
 					else:
 						type = int(type[0])
+					if range:
+						if end_seq < range[0] - 1 or start_seq > range[1] - 1: continue
+						start_seq = max(0, start_seq - range[0] + 1)
+						end_seq = min(end_seq - range[0] + 1, range[1] - range[0])
 					chain_start = line[19]
 					chain_end = line[31]
 					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
-					self.secondary_structures.append(Helix(start_seq - 1, end_seq - 1, type))
+					self.secondary_structures.append(Helix(start_seq, end_seq, type))
 				elif line.find('SHEET') == 0:
 					sense = int(line[38:40])
-					start_seq = int(line[23:26])
-					end_seq = int(line[34:37])
+					start_seq = int(line[23:26]) - 1
+					end_seq = int(line[34:37]) - 1
+					if range:
+						if end_seq < range[0] - 1 or start_seq > range[1] - 1: continue
+						start_seq = max(0, start_seq - range[0] + 1)
+						end_seq = min(end_seq - range[0] + 1, range[1] - range[0])
 					chain_start = line[21]
 					chain_end = line[32]
 					if chain_start.upper() != "A" or chain_end.upper() != "A": continue
 					if not current_sheet or sense == 0:
 						if current_sheet:
 							self.secondary_structures.append(current_sheet)
-						current_sheet = Sheet(start_seq - 1, end_seq - 1, sense)
+						current_sheet = Sheet(start_seq, end_seq, sense)
 					else:
-						current_sheet.add_strand(start_seq - 1, end_seq - 1, sense)
+						current_sheet.add_strand(start_seq, end_seq, sense)
 
 			if line.find('ATOM') != 0: continue
 			if line[17:20] == "SOL": break		#There are no more amino acids after the solvent molecules start
@@ -217,6 +240,9 @@ class Polypeptide(object):
 						self.aminoacids.pop()
 						if fillgaps:
 							self.aminoacids.append(None)
+				if range and range[0] > seq: continue
+				if range and range[1] < seq: break
+
 				if seq - current_seq > 1 and (current_seq != 0 or fillends):
 					current_seq += 1
 					if checkgaps:
@@ -279,12 +305,49 @@ class Polypeptide(object):
 		else:
 			return (minseq, maxseq)
 
-	def read(self, filepath, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False):
-		"""Set checkgaps to True to return a True value (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids). Set secondary_structure to True to populate the secondary_structures array of the protein with Helix and Sheet objects. Set fillgaps to True to fill the peptide amino acids array with None objects wherever there is a gap."""
+	def read(self, filepath, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False, range=None):
+		"""Set checkgaps to True to return a True value (first in the tuple if necessary) if there is one or more gaps in the chain. Set otheratoms to True to add all atoms found in the PDB file to the amino acids (under the otheratoms array property of the amino acids). Set secondary_structure to True to populate the secondary_structures array of the protein with Helix and Sheet objects. Set fillgaps to True to fill the peptide amino acids array with None objects wherever there is a gap. Set range to a 1-indexed tuple (start, end) to specify the locations to start and end this peptide."""
 		f = open(filepath, 'r')
-		ret = self.read_file(f, checkgaps, otheratoms, secondary_structure, fillgaps)
+		ret = self.read_file(f, checkgaps, otheratoms, secondary_structure, fillgaps, range)
 		f.close()
 		return ret
+
+	def iter_models_file(self, f, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False, range=None):
+		"""This function yields the model number for every model in the PDB file or list of lines you specify. At each iteration, the peptide assimilates the model into its own amino acids, so to evaluate the structure simply use this Polypeptide object. For information about the other parameters, see read()."""
+		if hasattr(f, "readlines"):
+			lines = f.readlines()
+		else:
+			lines = f
+		last_read = 0
+		peptide = None
+		cache = None
+		modelno = 0
+		i = 0
+		for i, l in enumerate(lines):
+			if l[:5] == "MODEL":
+				modelno = int(l[5:].strip())
+			elif l[:3] == "END":
+				if modelno == 0:
+					modelno = 1
+				try:
+					self.read_file(lines[last_read : i + 1], cache_aas=cache, checkgaps=checkgaps, otheratoms=otheratoms, secondary_structure=secondary_structure, fillgaps=fillgaps, fillends=fillends, range=range)
+					yield modelno
+				except AssertionError as e:
+					print "Assertion for model {}: {}".format(i, e)
+					curr_score = 0.0
+					last_read = i + 1
+					del self.aminoacids[:]
+					self.hashtable = None
+					continue
+				last_read = i + 1
+				cache = self.aminoacids
+				modelno = 1
+
+	def iter_models(self, filepath, checkgaps=False, otheratoms=False, secondary_structure=False, fillgaps=False, fillends=False, range=None):
+		"""This function iterates over the models found in the PDB file at filepath, reading them into this peptide's amino acid array and yielding the model number for each model. For information about the other parameters, see read()."""
+		with open(filepath, 'r') as file:
+			for modelno in self.iter_models_file(file, checkgaps, otheratoms, secondary_structure, fillgaps, fillends, range):
+				yield modelno
 	
 	def secondary_structure_aa(self, aa_idx):
 		"""Returns the (structure, strand) of the protein that contains amino acid at the index provided, and None if there is no secondary structure defined there."""
@@ -308,7 +371,7 @@ class Polypeptide(object):
 				if comps[0].lower() == 'helix':
 					self.secondary_structures.append(Helix(start, end, int(comps[1])))
 				elif comps[0].lower() == 'sheet':
-					if int(comps[1]) == 0:
+					if int(comps[1]) == 0 or not current_sheet:
 						if current_sheet: self.secondary_structures.append(current_sheet)
 						current_sheet = Sheet(start, end, int(comps[1]))
 					else:

@@ -35,8 +35,11 @@ def test_probsource(prob, peptide):
 
 def load_dists(basepath, weights={}, concurrent=True, secondary=True):
 	print "Loading SPARC..."
-	if not reference_state.is_initialized() and os.path.exists(os.path.join(basepath, "reference_states.txt")):
-		reference_state.load_reference_state(os.path.join(basepath, "reference_states.txt"))
+	if not reference_state.is_initialized():
+		if os.path.exists(os.path.join(basepath, "reference_states.txt")):
+			reference_state.load_reference_state(os.path.join(basepath, "reference_states.txt"))
+		if os.path.exists(os.path.join(basepath, "possible_interactions")):
+			reference_state.load_possible_interactions(os.path.join(basepath, "possible_interactions"))
 	nonconsec = os.path.join(basepath, "nonconsec")
 	if secondary or not os.path.exists(os.path.join(basepath, "consec+secondary")):
 		consec = os.path.join(basepath, "consec") #+secondary
@@ -45,14 +48,15 @@ def load_dists(basepath, weights={}, concurrent=True, secondary=True):
 	medium = os.path.join(basepath, "medium")
 	short_range = os.path.join(basepath, "short-range")
 	secondary_path = os.path.join(basepath, "secondary")
+	DistClass = SPARCBasicDistributionManager #SPARCBothOrientationDistributionManager
 	if concurrent == False:
 		dist1 = MediumDistributionManager(medium)
-		dist2 = SPARCBasicDistributionManager(consec, True, blocks_sec_struct=secondary)
+		dist2 = DistClass(consec, True, blocks_sec_struct=secondary)
 		if os.path.exists(short_range):
-			dist3 = SPARCBasicDistributionManager(nonconsec, False, short_range=False)
-			dist5 = SPARCBasicDistributionManager(short_range, False, short_range=True)
+			dist3 = DistClass(nonconsec, False, short_range=False)
+			dist5 = DistClass(short_range, False, short_range=True)
 		else:
-			dist3 = SPARCBasicDistributionManager(nonconsec, False)
+			dist3 = DistClass(nonconsec, False)
 			dist5 = None
 		if os.path.exists(secondary_path) and secondary:
 			dist4 = SPARCSecondaryDistributionManager(secondary_path)
@@ -347,20 +351,23 @@ def aminoacid_type_variation():
 
 if __name__ == '__main__':
 	#func()
+	#generate_distance_constrained_bins("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/bins_test.txt")
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/tasser", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/tasser-decoys")
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys")
 	#print determine_omits("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/omits.txt")
-	'''best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/comparison", numweights=4, start=[3, 4, 5, 10])
-	best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/comparison", numweights=4, start=7)
-	best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/comparison", numweights=4, start=3)
-	best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/comparison", numweights=3)'''
+	best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/sparc_scores", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/rmsds", None, numweights=4, start=[0, 2, 3, 4])
+	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp-both-or", numweights=4)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/rw/casp-rw", numweights=1)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/rw/tasser-rw", numweights=1)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/goap/casp-goap", numweights=1)
-	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/goap/tasser-goap", numweights=1, start=1)
-	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/tasser-decoys-new", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/tasser", None) #, "/Users/venkatesh-sivaraman/Downloads/casp11.targets_unsplitted.release11242014")
+	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/goap/tasser-goap", numweights=1)
+	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/ref-tests/average", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4)
+	#Average: Final: the combos [1, 1, 5, 1] had a total of 1 correct guesses, with R^2 0.486152814813
+	#Interaction Median: Final: the combos [1, 5, 5, 1] had a total of 1 correct guesses, with R^2 0.335183666746
+	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/ref-tests/zeroed_average", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4)
 	#decoys_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/tasser-decoys", None, "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd") #/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys,
-	#min1 = min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/refined-bpti/seg1.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native_seg1.pdb")
+	#min1 = min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-laptop/seg12.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native.pdb", range=[1, 12], writeout=True)
+	#min2 = min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-laptop/seg56.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native.pdb", range=[36, 46])
 	#print min1, min2
 	#print "We did main"
 	'''lowest_scores = [ [10000, None], [10000, None], [10000, None], [10000, None], [10000, None] ]
@@ -376,6 +383,13 @@ if __name__ == '__main__':
 			lowest_scores[idx - 1][1] = weights
 			print "New best"
 	print lowest_scores'''
+	'''sparc_dir = "/Users/venkatesh-sivaraman/Documents/Xcode Projects/PythonProteins/potential"
+	dists_noref = load_dists(sparc_dir, concurrent=True, secondary=True)
+	for d in dists_noref: d.refstate = False
+	dists_yesref = load_dists(sparc_dir, concurrent=True, secondary=True)
+	for d in dists_yesref: d.refstate = True
+	distributions = dists_noref + dists_yesref
+	min_rmsd("/Users/venkatesh-sivaraman/Desktop/bpti/seg4.pdb", "/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb", range=[18, 35], dists=distributions, separate_scores=True)'''
 	'''mins = []
 	for i in range(1, 9):
 		mins.append(min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/refined-bpti/seg" + str(i) + ".pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/refined-bpti/native_seg" + str(i) + ".pdb"))

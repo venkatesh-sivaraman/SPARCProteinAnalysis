@@ -21,8 +21,9 @@ def random_axes(previous_aa):
 		k = crossproduct(i, j)
 		return (i.normalize(), j.normalize(), k.normalize())
 
-def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary_structures=None, struct_permissions=None):
+def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary_structures=None, struct_permissions=None, repeat_cutoff=100, cache_aas=None, _callct=0):
 	'''This function generates a self-avoiding random walk in 3D space. If you pass a secondary_structures array and a AASecondaryStructurePermissionsManager object, the helices and sheets will be created using random relative orientations dictated by the permissions.'''
+	if _callct == repeat_cutoff: return None
 	current_pt = Point3D(random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0), random.uniform(-1.0, 1.0))
 	last_aa = None
 	second_last_aa = None
@@ -30,13 +31,20 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 	hashtable = AAHashTable()
 	bondangle = math.acos(-1.0 / 3.0)
 	for i, acode in enumerate(sequence):
-		aminoacid = AminoAcid(aatypec(acode), tag=i,acarbon=current_pt)
+		if cache_aas:
+			aminoacid = cache_aas[0]
+			del cache_aas[0]
+			aminoacid.type = aatypec(acode)
+			aminoacid.tag = i
+			aminoacid.acarbon = current_pt
+		else:
+			aminoacid = AminoAcid(aatypec(acode), tag=i,acarbon=current_pt)
 		axes = []
 		if last_aa is not None:
 			#Choose a point to the right of the amino acid
 			idx = 0
 			while len(hashtable.nearby_aa(aminoacid, steric_cutoff, consec=False)) > 0 or last_aa.acarbon.distanceto(current_pt) <= steric_cutoff:
-				if idx == 100: return generate_randomcoil(sequence, permissions, steric_cutoff, secondary_structures, struct_permissions)
+				if idx == repeat_cutoff: return generate_randomcoil(sequence, permissions, steric_cutoff, secondary_structures, struct_permissions, _callct=_callct+1)
 				
 				completed = False
 				if secondary_structures and struct_permissions:
@@ -46,7 +54,8 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 						if not len(candidates):
 							candidates = struct_permissions.allowed_conformations(aminoacid, last_aa, sec_struct[0].type, sec_struct[1].identifiers[0])
 						if not len(candidates):
-							print "No permissible candidates with secondary structure", i, last_aa
+							#print "No permissible candidates with secondary structure", i, last_aa
+							pass
 						else:
 							zone = random.choice(candidates)
 							current_pt = zone.alpha_zone
@@ -58,7 +67,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 					else:
 						candidates = permissions.allowed_conformations(aminoacid, last_aa, opposite_aa=second_last_aa)
 						if not len(candidates):
-							print "No permissible candidates", aminoacid, last_aa, second_last_aa
+							#print "No permissible candidates", aminoacid, last_aa, second_last_aa
 							idx += 1
 							continue
 						zone = random.choice(candidates)
