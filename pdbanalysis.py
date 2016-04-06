@@ -2176,6 +2176,56 @@ def aggregate_networkdata(input, output, both=False):
 	pool.join()
 	#for req_aa in xrange(0, AMINO_ACID_COUNT):
 
+def _aggregate_filenm(input, output, filenm):
+	def process_line(line, subdata):
+		comps = line.split(";")
+		key = PositionZone(Point3D(*comps[0].split(",")))
+		if key in subdata:
+			i = 0
+			for x in comps[1].split(","):
+				if not len(x.strip()): continue
+				subdata[key][i] += int(x)
+				i += 1
+		else:
+			subdata[key] = [int(x) for x in comps[1].split(",") if len(x.strip())]
+
+	print filenm, "==============="
+	if ".txt" not in filenm: return
+	data = {}
+	for subdir in os.listdir(input):
+		if not os.path.isdir(os.path.join(input, subdir)): continue
+		print subdir
+		desired_path = os.path.join(input, subdir, filenm)
+		if not os.path.exists(desired_path): continue
+		with open(desired_path, "r") as file:
+			for line in file: process_line(line, data)
+		del file
+	gc.collect()
+
+	f = open(join(output, filenm), 'w')
+	for pz, freq in data.iteritems():
+		freqstr = ""
+		for subfreq in freq:
+			freqstr += str(subfreq) + ","
+		freqstr = freqstr[:-1]
+		f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + freqstr + "\n")
+	f.close()
+
+def aggregate_consolidated_data(input, output):
+	if not os.path.exists(output): os.mkdir(output)
+	print output
+	filenms = []
+	for path in os.listdir(input):
+		if os.path.isdir(os.path.join(input, path)):
+			filenms = os.listdir(os.path.join(input, path))
+			break
+	pool = multiprocessing.Pool(processes=3, maxtasksperchild=1)
+	processor = partial(_aggregate_filenm, input, output)
+	pool.map(processor, filenms)
+	pool.close()
+	pool.join()
+
+
 def medium_distributions(input, output):
 	if not os.path.exists(output): os.mkdir(output)
 	for req_aa in xrange(0, AMINO_ACID_COUNT):

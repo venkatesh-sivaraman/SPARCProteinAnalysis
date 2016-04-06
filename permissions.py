@@ -92,6 +92,8 @@ class AAPermissionsManager(PermissionsManager):
 		super(AAPermissionsManager, self).__init__()
 		self.allowed_zones = [[[] for i in xrange(AMINO_ACID_COUNT)] for j in xrange(AMINO_ACID_COUNT)]
 		self.permissible_sequences = {}
+		self._perm_seq_list = []
+		self.permissible_indexes = {}
 		self.load_permissions_data(source)
 		self.load_sequences_data(triplets_source)
 
@@ -109,6 +111,24 @@ class AAPermissionsManager(PermissionsManager):
 				for line in file:
 					pt = Point3D(*line.strip().split(","))
 					self.allowed_zones[tag1][tag2].append(pt)
+
+	def associate_permissible_indexes(self):
+		self.permissible_indexes = {}
+		for i, seqdata in enumerate(self._perm_seq_list):
+			zones = seqdata[0]
+			seq_zones = seqdata[1]
+			if zones[0] not in self.permissible_indexes:
+				self.permissible_indexes[zones[0]] = []
+			if zones[1] not in self.permissible_indexes:
+				self.permissible_indexes[zones[1]] = []
+			self.permissible_indexes[zones[0]].append(i)
+			self.permissible_indexes[zones[1]].append(i)
+
+	def associated_sequences(self, zone):
+		"""Iterates over (zones, continuation zone) items that have `zone` as one of the primary zones."""
+		if zone not in self.permissible_indexes: return
+		for idx in self.permissible_indexes[zone]:
+			yield self._perm_seq_list[idx][0]
 
 	def load_sequences_data(self, source):
 		assert ".txt" in source, "Permissible sequences data not in the form of a .txt file: {}".format(source)
@@ -129,6 +149,8 @@ class AAPermissionsManager(PermissionsManager):
 					if current_zones not in self.permissible_sequences:
 						self.permissible_sequences[current_zones] = []
 					self.permissible_sequences[current_zones].append(alpha_zone)
+		self._perm_seq_list = self.permissible_sequences.items()
+		self.associate_permissible_indexes()
 
 	def allowed_conformations(self, aminoacid, reference_aa, prior=True, opposite_aa=None):
 		"""This overridden function accepts an amino acid whose allowed position zones are requested, and a reference_aa to which the amino acid's position should be favorable. Set prior to True if reference_aa comes before aminoacid, and False if not. Return values are position zones in the global coordinate system.
@@ -161,7 +183,7 @@ class AAPermissionsManager(PermissionsManager):
 			retro_candidates = []
 			if opposite_aa is not None and opposite_permissible:
 				#Search for pairs within the top-level keys of permissible_sequences that the new amino acid could use
-				for zonea, zoneb in self.permissible_sequences:
+				for zonea, zoneb in self.associated_sequences(alpha_zone):
 					if prior == True and zonea == alpha_zone:
 						if zone2 in self.permissible_sequences[(zonea, zoneb)]:
 							retro_candidates.append(zoneb)
@@ -170,9 +192,9 @@ class AAPermissionsManager(PermissionsManager):
 							retro_candidates.append(zonea)
 			if len(retro_candidates) == 0:
 				if prior:
-					retro_candidates = [zones[1] for zones in self.permissible_sequences if zones[0] == alpha_zone]
+					retro_candidates = [zones[1] for zones in self.associated_sequences(alpha_zone) if zones[0] == alpha_zone]
 				else:
-					retro_candidates = [zones[0] for zones in self.permissible_sequences if zones[1] == alpha_zone]
+					retro_candidates = [zones[0] for zones in self.associated_sequences(alpha_zone) if zones[1] == alpha_zone]
 
 			alpha_zone = alpha_zone.add(Point3D(0.5, 0.5, 0.5))
 			alocation = reference_aa.toglobal(alpha_zone)
@@ -205,7 +227,7 @@ class AAPermissionsManager(PermissionsManager):
 
 		allowed = [zones[0] for zones in self.permissible_sequences]
 		if loc in allowed: #self.allowed_zones[type2][type1]:
-			allowed = [zones[1] for zones in self.permissible_sequences if zones[0] == loc]
+			allowed = [zones[1] for zones in self.associated_sequences(loc) if zones[0] == loc]
 			if loc2 in allowed:
 				return True
 			else:

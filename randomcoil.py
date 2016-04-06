@@ -30,6 +30,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 	allaa = []
 	hashtable = AAHashTable()
 	bondangle = math.acos(-1.0 / 3.0)
+	candidates = []
 	for i, acode in enumerate(sequence):
 		if cache_aas:
 			aminoacid = cache_aas[0]
@@ -76,6 +77,7 @@ def generate_randomcoil(sequence, permissions=None, steric_cutoff=3.0, secondary
 						completed = True
 				aminoacid.acarbon = current_pt
 				idx += 1
+				del candidates[:]
 		if permissions == None or len(axes) == 0:
 			axes = random_axes(last_aa)
 		aminoacid.set_axes(*axes, normalized=False)

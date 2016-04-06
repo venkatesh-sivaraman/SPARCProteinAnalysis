@@ -8,6 +8,7 @@ from functools import partial
 from secondary_structure import *
 from sparc_distribution import *
 from charmm import *
+from memory_profiler import profile
 
 nonconsecutive_mode = 'n'
 consecutive_mode = 'c'
@@ -405,13 +406,13 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 					#if n == iterations / 2: print n, "of", iterations, "iterations"
 					worked = peptide.randomcoil(permissions=permissions, struct_permissions=sec_struct_permissions, repeat_cutoff=10)
 					if not worked: continue
-					for i, aa in enumerate(peptide.aminoacids):
-						r = peptide.nearby_aa(aa, 10.0, i)
-						for j, aa2 in enumerate(r):
+					for aa in peptide.aminoacids:
+						r = peptide.nearby_aa(aa, 10.0, aa.tag)
+						for aa2 in r:
 							pz = aa.aa_position_zone(aa2).alpha_zone
-							separation = min(int(math.fabs(j - i)), 6) - 1
-							sec_struct = peptide.secondary_structure_aa(i)
-							sec_struct_2 = peptide.secondary_structure_aa(j)
+							separation = min(int(math.fabs(aa2.tag - aa.tag)), 6) - 1
+							sec_struct = peptide.secondary_structure_aa(aa.tag)
+							sec_struct_2 = peptide.secondary_structure_aa(aa2.tag)
 							if sec_struct and sec_struct_2 and sec_struct[1].start == sec_struct_2[1].start:
 								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
 								if pz in data[sec_name]:
@@ -588,7 +589,7 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 				print "Partial omit %r (exception)." % pdbid
 
 		del peptide.aminoacids[:]
-		peptide.hashtable = None
+		peptide.hashtable.clear()
 		gc.collect()
 	del peptide
 
@@ -886,15 +887,15 @@ def pdb_reference_state(input, output, permissions, sec_struct_permissions, iter
 	with open(input, 'r') as file:
 		contents = file.readlines()
 	#contents = numpy.random.choice(contents, 500)
-	block_size = 5
+	block_size = 10
 	i = 0
 	blocks = int(math.ceil(len(contents) / block_size))
 	
-	pool = multiprocessing.Pool(processes=3, initializer=pool_initializer, maxtasksperchild=1)
+	pool = multiprocessing.Pool(processes=4, initializer=pool_initializer, maxtasksperchild=1)
 	partial_block_stats = partial(pool_pdb_reference_state, input, output, random_coil_mode, iterations, permissions, sec_struct_permissions)
-	zipped = [(contents[block_size * k : min(block_size * (k + 1), len(contents))], k) for k in xrange(i, 1)] #blocks
+	zipped = [(contents[block_size * k : min(block_size * (k + 1), len(contents))], k) for k in xrange(i, blocks)]
 	#print zipped
-	map(partial_block_stats, zipped)
+	pool.map_async(partial_block_stats, zipped)
 	pool.close()
 	pool.join()
 	print "done"

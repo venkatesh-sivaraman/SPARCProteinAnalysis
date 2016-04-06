@@ -30,11 +30,12 @@ if __name__ == '__main__':
 
 	data_dir = os.path.join(os.path.dirname(input), "sparc_data")
 
-	sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
-	permissions = AAPermissionsManager(os.path.join(sparc_dir, "permissions"), os.path.join(sparc_dir, "permissible_sequences", "all.txt"))
-	sec_struct_permissions = AASecondaryStructurePermissionsManager(os.path.join(sparc_dir, "permissible_sequences"))
-	cProfile.runctx('pdb_reference_state(input, data_dir, permissions, sec_struct_permissions)', {'pdb_reference_state': pdb_reference_state, 'input': input, 'data_dir': data_dir, 'permissions': permissions, 'sec_struct_permissions': sec_struct_permissions}, {})
+	original_potential = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
+	permissions = AAPermissionsManager(os.path.join(original_potential, "permissions"), os.path.join(original_potential, "permissible_sequences", "all.txt"))
+	sec_struct_permissions = AASecondaryStructurePermissionsManager(os.path.join(original_potential, "permissible_sequences"))
+	#cProfile.runctx('pdb_reference_state(input, data_dir, permissions, sec_struct_permissions)', {'pdb_reference_state': pdb_reference_state, 'input': input, 'data_dir': data_dir, 'permissions': permissions, 'sec_struct_permissions': sec_struct_permissions}, {})
 	#pdb_reference_state(input, data_dir, permissions, sec_struct_permissions)
+	aggregate_consolidated_data(data_dir, sparc_dir)
 
 	if False:
 		if calculate_interactions:
