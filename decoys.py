@@ -31,6 +31,7 @@ def process_decoys_file((input, output, sparc_dir, nativepath, old)):
 		distributions = dists_old + dists_noref + dists_yesref
 	else:
 		distributions = load_dists(sparc_dir, concurrent=False, secondary=False)
+		#distributions = load_central_dist(sparc_dir, secondary=False)
 
 	paths = os.listdir(input)
 	allpaths = [os.path.join(input, path) for path in paths]
@@ -61,11 +62,11 @@ def process_decoys_file((input, output, sparc_dir, nativepath, old)):
 		scores = None
 	for path in paths:
 		if path == "list" or path == "rmsds": continue
-		if True: #try:
+		try:
 			scores = sparc_scores_file(join(input, path), distributions, bounds=bounds, peptide=peptide) #, ignored_aas=gaps
-		'''except Exception as e:
+		except Exception as e:
 			print path, "exception ({})".format(e)
-			continue'''
+			continue
 		if output and scores is not None:
 			scorestr = ""
 			for s in scores: scorestr += str(s) + ","
@@ -87,8 +88,8 @@ def test_sparc(input, output, sparc_dir, natives=None, old=None):
 		os.mkdir(output)
 	print len(files), "files"
 	pool = multiprocessing.Pool(processes=2, maxtasksperchild=1)
-	zipped = [(join(input, file), join(output, file + ".txt"), sparc_dir, natives, old) for file in files]
-	map(process_decoys_file, zipped)
+	zipped = [(join(input, file), join(output, file + ".txt"), sparc_dir, natives, old) for file in files if file[0] not in "._"]
+	pool.map_async(process_decoys_file, zipped)
 	pool.close()
 	pool.join()
 	print "done"

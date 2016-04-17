@@ -12,7 +12,7 @@ sparc_mode = "sparc"
 
 def sparc_validation(input, native, range, output=None):
 	sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
-	weights = { "consec": 4.0, "secondary": 4.0, "short-range": 1.0, "nonconsec": 4.0, "medium": 5.0 }
+	weights = { "consec": 4.0, "secondary": 4.0, "short_range": 1.0, "long_range": 4.0, "medium": 5.0 }
 	distributions = load_dists(sparc_dir, secondary=True, weights=weights)
 	backup_sec_structs = []
 	if output:

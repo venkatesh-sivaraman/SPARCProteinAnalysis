@@ -205,29 +205,41 @@ def write_median_frequencies(input):
 				line = line.strip()
 				if len(line) == 0 or ";" not in line: continue
 				comps = line.split(";")
-				dist.append(float(comps[1]))
-		s = sorted(dist)
-		if len(s) > 0:
-			median = s[int(len(s) / 2.0)]
-			interaction_median = sum(s) / 2.0
-			runner = 0.0
-			for x in s:
-				runner += x
-				if runner >= interaction_median:
-					interaction_median = x
-					break
-			mean = sum(s) / 5111.0 #float(len(s))
-		else:
-			median = 0.0
-			interaction_median = 0.0
-			mean = 0.0
+				dist.append([float(x) for x in comps[1].split(",")])
+		means = []
+		interaction_medians = []
+		medians = []
+		for subdist in dist:
+			s = sorted(subdist)
+			if len(s) > 0:
+				median = s[int(len(s) / 2.0)]
+				interaction_median = sum(s) / 2.0
+				runner = 0.0
+				for x in s:
+					runner += x
+					if runner >= interaction_median:
+						interaction_median = x
+						break
+				mean = sum(s) / 5111.0 #float(len(s))
+			else:
+				median = 0.0
+				interaction_median = 0.0
+				mean = 0.0
+			means.append(mean)
+			interaction_medians.append(interaction_median)
+			medians.append(median)
 		with open(os.path.join(input, path), 'r') as file:
 			text = file.readlines()
 		with open(os.path.join(input, path), 'w') as file:
 			for line in text:
 				if len(line.split(";")) > 1:
 					file.write(line)
-			file.write(str(interaction_median) + "\n" + str(median) + "\n" + str(mean) + "\n")
+			def list_str(numbers_string):
+				ret = ""
+				for num in numbers_string:
+					ret += str(num) + ","
+				return ret[:-1]
+			file.write(list_str(interaction_medians) + "\n" + list_str(medians) + "\n" + list_str(means) + "\n")
 
 def write_mean_hydrophobicity_dist(input):
 	"""Writes the mean frequency to the end of the file for each medium file in input. (Deprecated; use format_hydrophobicity_dist instead.)"""
@@ -1577,7 +1589,7 @@ def best_weights(input, numweights=4, start=0):
 				maxweights = [w]
 	print "Final: the combos", maxweights, "had a total of", maxcorrect, "correct guesses, with z score", max_z
 
-def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, groups=False):
+def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, groups=False, tmscore=False):
 	"""This method performs exactly the same function as best_weights, but instead of using the Z-score as the rank, it uses the correlation coefficient between the RMSDs of the decoys and the SPARC scores."""
 	weights = []
 	def genweights(levels, min, max):
@@ -1628,6 +1640,7 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 
 	for w in weights:
 		correct = 0
+		correct_model = 0
 		total_r2 = 0.0
 		num_r2 = 0
 		total_best_rmsd = 0.0
@@ -1655,6 +1668,7 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 			min_filename = None
 			min_rmsd = 0.0
 			min_rmsd_score = 0.0
+			min_rmsd_filename = None
 			for filename, score in scores.iteritems():
 				#if filename == path[:path.find(".txt")]: continue
 				if filename not in rmsd_list:
@@ -1664,13 +1678,17 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 					continue
 				sparc_scores.append(score)
 				rmsd_scores.append(rmsd_list[filename])
-				if score < min_score:
+				if filename != path[:path.find(".txt")] and score < min_score:
 					min_filename = filename
 					min_score = score
 					min_score_rmsd = rmsd_list[filename]
-				if rmsd_list[filename] < min_rmsd:
+				if filename != path[:path.find(".txt")] and ((tmscore and rmsd_list[filename] > min_rmsd) or (not tmscore and rmsd_list[filename] < min_rmsd)):
 					min_rmsd = rmsd_list[filename]
 					min_rmsd_score = score
+					min_rmsd_filename = filename
+			#print min_filename, min_score_rmsd, min_rmsd_filename, min_rmsd
+			if min_filename[-1] == "1": #min_filename == min_rmsd_filename:
+				correct_model += 1
 			m, b, r2, p, se = linregress(sparc_scores, rmsd_scores)
 			extra = ""
 			if groups:
@@ -1681,13 +1699,18 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 					if int(min_group.split("_")[1]) < 3: group_correct += 1
 				extra = "\t" + str(group_correct) + "\t" + str(len(subgroups))
 			if w == [1, 5, 5, 1] or numweights != 4:
-				print min_filename + "\t" + str(sum(rmsd_scores) / float(len(rmsd_scores))) + "\t" + str(max(rmsd_scores)) + "\t" + str(len([x for x in sparc_scores if x < min_rmsd_score])) + "\t" + str(min_score_rmsd) + "\t" + str(r2 ** 2) + extra
+				best_rmsd = 0
+				if tmscore:
+					best_rmsd = max(rmsd_scores)
+				else:
+					best_rmsd = min(rmsd_scores)
+				print min_filename + "\t" + str(sum(rmsd_scores) / float(len(rmsd_scores))) + "\t" + str(best_rmsd) + "\t" + str(len([x for x in sparc_scores if x < min_rmsd_score])) + "\t" + str(min_score_rmsd) + "\t" + str(r2 ** 2) + extra
 			total_r2 += r2 ** 2
 			total_best_rmsd += min_score_rmsd
 			num_r2 += 1
 			del sparc_scores[:], rmsd_scores[:]
 		total_r2 /= float(num_r2)
-		print "{}\t{}\t{}\t{}".format(w, correct, total_r2, total_best_rmsd / float(num_r2))
+		print "{}\t{}\t{}\t{}\t{}".format(w, correct, correct_model, total_r2, total_best_rmsd / float(num_r2))
 		if total_r2 > max_rsq:
 			maxweights = w
 			maxcorrect = correct
@@ -2032,10 +2055,10 @@ def _aggregate_aa(input, output, both, req_aa):
 			secondary_struct_sheet + "-1" : {}
 		}
 	data = {
-		"nonconsec" : [{} for i in range(AMINO_ACID_COUNT)],
+		"long_range" : [{} for i in range(AMINO_ACID_COUNT)],
 		"consec" : [{} for i in range(AMINO_ACID_COUNT)],
 		"consec+secondary" : [{} for i in range(AMINO_ACID_COUNT)],
-		"short-range" : [{} for i in range(AMINO_ACID_COUNT)],
+		"short_range" : [{} for i in range(AMINO_ACID_COUNT)],
 		"medium" : [0 for i in xrange(100)]
 	}
 	print "========", req_aa
@@ -2066,7 +2089,7 @@ def _aggregate_aa(input, output, both, req_aa):
 							data["medium"][int(comps[0])] += int(comps[1])
 
 			if not os.path.isdir(os.path.join(input, subdir, subsubdir)): continue
-			if subsubdir == "consec" or subsubdir == "nonconsec" or subsubdir == "short-range" or subsubdir == "consec+secondary":
+			if subsubdir == "consec" or subsubdir == "long_range" or subsubdir == "short_range" or subsubdir == "consec+secondary":
 				for aacombo in os.listdir(os.path.join(input, subdir, subsubdir)):
 					if ".txt" not in aacombo: continue
 					aas = [int(x) for x in aacombo.replace(".txt", "").split("-")]
@@ -2099,11 +2122,18 @@ def _aggregate_aa(input, output, both, req_aa):
 	gc.collect()
 
 	def write_file(key, twopzs=False):
+		has_contents = False
+		for j in range(AMINO_ACID_COUNT):
+			if len(data[key][j]):
+				has_contents = True
+				break
+		if not has_contents: return
+		
 		file_path = join(output, key)
 		if not os.path.exists(file_path): os.mkdir(file_path)
 		i = req_aa
 		for j in range(AMINO_ACID_COUNT):
-			if not len(data[key][j]) or i > j: continue
+			if not len(data[key][j]) or (i > j and twopzs): continue
 			f = open(join(file_path, "%d-%d.txt" % (i, j)), 'w')
 			if twopzs:
 				for pzs, freq in data[key][j].iteritems():
@@ -2113,10 +2143,10 @@ def _aggregate_aa(input, output, both, req_aa):
 					f.write(str(pz.alpha_zone.x) + ", " + str(pz.alpha_zone.y) + ", " + str(pz.alpha_zone.z) + "; " + str(freq) + "\n")
 			f.close()
 
-	write_file("nonconsec", twopzs=both)
+	write_file("long_range", twopzs=both)
 	write_file("consec", twopzs=both)
 	write_file("consec+secondary", twopzs=both)
-	write_file("short-range", twopzs=both)
+	write_file("short_range", twopzs=both)
 
 	#Medium
 	if not both:
@@ -2176,7 +2206,7 @@ def aggregate_networkdata(input, output, both=False):
 	pool.join()
 	#for req_aa in xrange(0, AMINO_ACID_COUNT):
 
-def _aggregate_filenm(input, output, filenm):
+def _aggregate_filenm(input, output, midpath, filenm):
 	def process_line(line, subdata):
 		comps = line.split(";")
 		key = PositionZone(Point3D(*comps[0].split(",")))
@@ -2195,14 +2225,21 @@ def _aggregate_filenm(input, output, filenm):
 	for subdir in os.listdir(input):
 		if not os.path.isdir(os.path.join(input, subdir)): continue
 		print subdir
-		desired_path = os.path.join(input, subdir, filenm)
+		if midpath:
+			desired_path = os.path.join(input, subdir, midpath, filenm)
+		else:
+			desired_path = os.path.join(input, subdir, filenm)
 		if not os.path.exists(desired_path): continue
 		with open(desired_path, "r") as file:
 			for line in file: process_line(line, data)
 		del file
 	gc.collect()
 
-	f = open(join(output, filenm), 'w')
+	if midpath:
+		if not os.path.exists(join(output, midpath)): os.mkdir(join(output, midpath))
+		f = open(join(output, midpath, filenm), 'w')
+	else:
+		f = open(join(output, filenm), 'w')
 	for pz, freq in data.iteritems():
 		freqstr = ""
 		for subfreq in freq:
@@ -2214,13 +2251,17 @@ def _aggregate_filenm(input, output, filenm):
 def aggregate_consolidated_data(input, output):
 	if not os.path.exists(output): os.mkdir(output)
 	print output
+	midpath = None
 	filenms = []
 	for path in os.listdir(input):
 		if os.path.isdir(os.path.join(input, path)):
 			filenms = os.listdir(os.path.join(input, path))
+			if "default" in filenms:
+				midpath = "default"
+				filenms = os.listdir(os.path.join(input, path, midpath))
 			break
 	pool = multiprocessing.Pool(processes=3, maxtasksperchild=1)
-	processor = partial(_aggregate_filenm, input, output)
+	processor = partial(_aggregate_filenm, input, output, midpath)
 	pool.map(processor, filenms)
 	pool.close()
 	pool.join()

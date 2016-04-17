@@ -704,40 +704,49 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 		peptide = Polypeptide()
 		model_count = n
 		confs = [[0, 10000000, 0] for i in xrange(model_count)]
-		backups = [[0, 10000000, 0] for i in xrange(model_count)]
+		backups = [[0, 10000000, 0] for i in xrange(model_count * 3)]
 
 		for modelno in peptide.iter_models(path):
-			if curr_score == 0.0:
-				curr_score = sum(d.score(peptide, peptide.aminoacids) for d in self.distributions)
+			curr_score = sum(d.score(peptide, peptide.aminoacids) for d in self.distributions)
+			add_to_backup = True
 			for k in xrange(model_count):
 				if curr_score < confs[k][1] * 1.1:
 					for m in reversed(xrange(max(k, 1), model_count)):
 						confs[m] = confs[m - 1]
 					confs[k] = [modelno, curr_score, score_to_probability(curr_score)]
+					add_to_backup = False
 					break
 				elif curr_score < confs[k][1]:
 					break
-			for k in xrange(model_count):
-				if curr_score < backups[k][1]:
-					for m in reversed(xrange(max(k, 1), model_count)):
-						backups[m] = backups[m - 1]
-					backups[k] = [modelno, curr_score, score_to_probability(curr_score)]
-					break
+			if add_to_backup:
+				for k in xrange(model_count):
+					if curr_score < backups[k][1]:
+						for m in reversed(xrange(max(k, 1), model_count)):
+							backups[m] = backups[m - 1]
+						backups[k] = [modelno, curr_score, score_to_probability(curr_score)]
+						break
 
 			#confs.append([modelno, curr_score, score_to_probability(curr_score)])
 			if modelno % 50 == 0:
 				print "Loaded", modelno, "conformations..."
-			curr_score = 0.0
-		
+
 		for i, c in enumerate(confs):
-			if c[1] > 0.0:
+			if c[1] > 10000.0:
 				confs[i] = backups[0]
 				del backups[0]
+		i = 0
+		while i < len(confs):
+			if confs[i][1] > 10000.0:
+				del confs[i]
+			else:
+				i += 1
+		
 		confs2 = sorted(confs, key=lambda x: x[1])
 		#Go back and read through the file, saving the conformations that we noted above
 		last_read = 0
 		modelno = 0
 		peptide = None
+		print confs2
 		with open(path, 'r') as file:
 			lines = file.readlines()
 			cache = None
@@ -752,16 +761,21 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 						try:
 							peptide.read_file(lines[last_read : i + 1], cache_aas=cache)
 						except AssertionError as e:
+							print "Exception reading structure!"
 							last_read = i + 1
 							del peptide.aminoacids[:]
 							peptide.hashtable = None
+							del confs2[idx]
 							continue
 						confs2[idx][0] = [aa.pz_representation() for aa in peptide.aminoacids]
+						print modelno, idx, confs2[idx][0]
 						cache = peptide.aminoacids
 					last_read = i + 1
 			del lines, cache
 		del confs
 		print "Loaded", len(confs2), "conformations for segment", cluster_num
+		for i, c in enumerate(confs2):
+			assert len(c[0]), "Invalid conf {} {}".format(i, c)
 		if cluster_num == 1:
 			self.c1_conformations = confs2
 		elif cluster_num == 2:

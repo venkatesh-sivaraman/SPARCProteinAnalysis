@@ -1,6 +1,7 @@
 from pdbstats import *
 from pdbanalysis import *
 from generic_distributions import *
+from central_distributions import *
 from permissions import *
 from randomcoil import *
 from molecular_systems import *
@@ -115,31 +116,40 @@ def load_dists(basepath, weights={}, concurrent=True, secondary=True):
 		for dist in dists:
 			if dist.identifier == "consec": distributions[0] = dist
 			elif dist.identifier == "secondary": distributions[1] = dist
-			elif dist.identifier == "short-range": distributions[2] = dist
-			elif dist.identifier == "nonconsec": distributions[3] = dist
+			elif dist.identifier == "short_range": distributions[2] = dist
+			elif dist.identifier == "long_range": distributions[3] = dist
 			elif "medium" in dist.identifier: distributions[4] = dist
 	else:
 		distributions = ["", "", "", ""]
 		for dist in dists:
 			if dist.identifier == "consec+secondary": distributions[0] = dist
-			elif dist.identifier == "short-range": distributions[1] = dist
-			elif dist.identifier == "nonconsec": distributions[2] = dist
+			elif dist.identifier == "short_range": distributions[1] = dist
+			elif dist.identifier == "long_range": distributions[2] = dist
 			elif "medium" in dist.identifier: distributions[3] = dist
 	print "Finished loading."
 	loading_indicator.clear_loading_data()
 	return distributions
+
+def load_central_dist(basepath, secondary=True):
+	central_manager = SPARCCentralDistributionManager(os.path.join(basepath, "default"), os.path.join(basepath, "random_coil_ref"))
+	medium = os.path.join(basepath, "medium")
+	medium_dist = MediumDistributionManager(medium)
+	if secondary:
+		return [SPARCCentralDistributionPuppet(central_manager, sparc_consecutive_mode), SPARCCentralDistributionPuppet(central_manager, sparc_secondary_mode), SPARCCentralDistributionPuppet(central_manager, sparc_short_range_mode), SPARCCentralDistributionPuppet(central_manager, sparc_long_range_mode), medium_dist]
+	else:
+		return [SPARCCentralDistributionPuppet(central_manager, sparc_consec_secondary_mode), SPARCCentralDistributionPuppet(central_manager, sparc_short_range_mode), SPARCCentralDistributionPuppet(central_manager, sparc_long_range_mode), medium_dist]
 
 def apply_dist_weights(dists, w):
 	for d in dists:
 		if d.identifier in w:
 			d.weight = w[d.identifier]
 
-#{ "consec": 4.0, "secondary": 4.0, "short-range": 1.0, "nonconsec": 4.0, "medium": 5.0 }
-def func(weights={ "consec": 3.0, "secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 3.0 }, base="refined-bpti/"):
+#{ "consec": 4.0, "secondary": 4.0, "short_range": 1.0, "long_range": 4.0, "medium": 5.0 }
+def func(weights={ "consec": 3.0, "secondary": 3.0, "short_range": 2.0, "long_range": 2.0, "medium": 3.0 }, base="refined-bpti/"):
 	#Weights used to be 2, 4, 8
 	
 	dists = load_dists(weights=weights) #load_dists(weights={frequency_nonconsec_disttype: 9.0, frequency_consec_disttype: 4.0, medium_disttype: 3.0})
-	sec_struct_weights = { "consec": 3.0, "secondary": 3.0, "short-range": 1.0, "nonconsec": 1.0, "medium": 0.0 }
+	sec_struct_weights = { "consec": 3.0, "secondary": 3.0, "short_range": 1.0, "long_range": 1.0, "medium": 0.0 }
 	#cProfile.runctx('simulate_fold(dists, seq="RPDFCLE", outname="segments/seg1.pdb")', {'dists': dists, 'simulate_fold': simulate_fold}, {})
 	#Insulin - GIVEQCCTSICSLYQLENYCN, FVNQHLCGSHLVEALYLVCGERGFFYTPKT
 	'''apply_dist_weights(dists, sec_struct_weights)
@@ -355,7 +365,8 @@ if __name__ == '__main__':
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/tasser", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/tasser-decoys")
 	#print z_score("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp", w, structure_files="/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys")
 	#print determine_omits("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/omits.txt")
-	best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/sparc_scores", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/rmsds", None, numweights=4, start=[0, 2, 3, 4])
+	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/sparc_scores", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/rmsds", None, numweights=4, start=[0, 2, 3, 4])
+	#load_central_dist("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/consolidated-sparc/SPARC 4")
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp-both-or", numweights=4)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/rw/casp-rw", numweights=1)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/rw/tasser-rw", numweights=1)
@@ -364,7 +375,8 @@ if __name__ == '__main__':
 	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/ref-tests/average", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4)
 	#Average: Final: the combos [1, 1, 5, 1] had a total of 1 correct guesses, with R^2 0.486152814813
 	#Interaction Median: Final: the combos [1, 5, 5, 1] had a total of 1 correct guesses, with R^2 0.335183666746
-	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/ref-tests/zeroed_average", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4)
+	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/tasser-correct-orient", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/tasser", None, numweights=4, tmscore=True) #"/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives"
+	best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp-correct-orient", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4, tmscore=True)
 	#decoys_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/tasser-decoys", None, "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd") #/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys,
 	#min1 = min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-laptop/seg12.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native.pdb", range=[1, 12], writeout=True)
 	#min2 = min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-laptop/seg56.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native.pdb", range=[36, 46])

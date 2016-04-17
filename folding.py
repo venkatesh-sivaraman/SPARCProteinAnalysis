@@ -20,7 +20,7 @@ from distributions import *
 from molecular_systems import *
 from probsource import *
 import random
-from main import load_dists, apply_dist_weights
+from main import load_dists, apply_dist_weights, load_central_dist
 from pdbanalysis import *
 import os, sys
 import numpy
@@ -466,6 +466,7 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 	seq1 = seq[range1[0] - 1 : range1[1]]
 	seq2 = seq[range2[0] - 1 : range2[1]]
 	seg_prob = AAConstructiveProbabilitySource(peptide, (0, len(seq1)), (len(seq1), len(seq1) + len(seq2)), dists, permissions, sec_struct_permissions, system=system)
+	seg_prob.steric_cutoff = 0.0
 	for i, inf in enumerate(infiles):
 		seg_prob.load_cluster_conformations(i + 1, inf, n=cluster_confs)
 	
@@ -523,6 +524,7 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 	pdb_model_idx = 1
 	prob = AAProbabilitySource(peptide, dists, permissions, sec_struct_permissions)
 	prob.mode = psource_gentle_mode
+	prob.steric_cutoff = 0.0
 	model_count = 10
 	best_models = [[] for i in xrange(model_count)]
 	best_scores = [1000000 for i in xrange(model_count)]
@@ -677,6 +679,7 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 			peptide.add_secondary_structures(sec_structs, format='pdb', range=range)
 	system = MolecularSystem([peptide])
 	prob = AAProbabilitySource(peptide, dists, permissions, sec_struct_permissions, system=system)
+	prob.steric_cutoff = 0.0
 	best_models = [[] for i in xrange(model_count)]
 	best_scores = [1000000 for i in xrange(model_count)]
 	pdb_model_idx = 2
@@ -724,8 +727,8 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 		proximity = 2.0
 		for i in xrange(n):
 			print "{} ({})".format(i, outname)
-			if gentle_cutoff != 0:
-				prob.erratic_proximity = math.fabs(proximity * ((gentle_cutoff / scores[-1]) ** 2)) #(1.0 - i / n)
+			#if gentle_cutoff != 0:
+			#	prob.erratic_proximity = math.fabs(proximity * ((gentle_cutoff / scores[-1]) ** 2)) #(1.0 - i / n)
 			seglen = segment_length(scores[-1] / len(peptide.aminoacids))
 			folding_iteration(system, [prob], seglen)
 			peptide.center()
@@ -829,8 +832,8 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 
 def start_run((run, seq, sec_structs, sparc_dir)):
 	assert len(run) >= 2, "Run directive is invalid: {}".format(run)
-	weights = { "consec": 3.0, "secondary": 3.0, "short-range": 2.0, "nonconsec": 2.0, "medium": 3.0 }
-	distributions = load_dists(sparc_dir, concurrent=False, secondary=True, weights=weights)
+	weights = { "consec": 3.0, "secondary": 3.0, "short_range": 2.0, "long_range": 2.0, "medium": 3.0 }
+	distributions = load_dists(sparc_dir, concurrent=False, secondary=True, weights=weights) #load_central_dist(sparc_dir, secondary=True)
 
 	if len(run[1]) > 1:
 		# run[1] must be the input paths, and run[2] must be the output path name
@@ -844,7 +847,7 @@ def start_run((run, seq, sec_structs, sparc_dir)):
 		range1 = [int(x) for x in run[0][0].split("-")]
 		range2 = [int(x) for x in run[0][1].split("-")]
 		infiles = [os.path.join(output, nm) for nm in run[1]]
-		apply_dist_weights(distributions, { "consec": 1.0, "secondary": 1.0, "short-range": 5.0, "nonconsec": 5.0, "medium": 3.0 })
+		apply_dist_weights(distributions, { "consec": 1.0, "secondary": 1.0, "short_range": 3.0, "long_range": 5.0, "medium": 3.0 })
 		return segment_fold(sparc_dir, distributions, seq, range1, range2, infiles, output, outname=run[2][0], **extra_args)
 	else:
 		# run[1] must be the output path name
@@ -856,8 +859,13 @@ def start_run((run, seq, sec_structs, sparc_dir)):
 				kv = arg.split("=")
 				extra_args[kv[0]] = kv[1]
 		range = [int(x) for x in run[0][0].split("-")]
-		if range[1] - range[0] > 7:
-			apply_dist_weights(distributions, { "consec": 2.0, "secondary": 2.0, "short-range": 4.0, "nonconsec": 4.0, "medium": 5.0 })
+		if "weights" in extra_args:
+			weightlist = extra_args["weights"].split(",")
+			assert len(weightlist) == 5, "Need exactly 5 weight specifications, not {}".format(len(weightlist))
+			apply_dist_weights(distributions, { "consec": float(weightlist[0]), "secondary": float(weightlist[1]), "short_range": float(weightlist[2]), "long_range": float(weightlist[3]), "medium": float(weightlist[4]) })
+			del extra_args["weights"]
+		elif range[1] - range[0] > 7:
+			apply_dist_weights(distributions, { "consec": 2.0, "secondary": 2.0, "short_range": 4.0, "long_range": 5.0, "medium": 4.0 })
 		return simulate_fold(sparc_dir, distributions, seq, range, output, outname=run[1][0], **extra_args)
 
 def run_simulation(directives, output, sparc_dir):
@@ -915,4 +923,6 @@ if __name__ == '__main__':
 			i += 2
 		else:
 			assert False, "Unexpected command-line argument {}".format(args[i])
+	if not os.path.exists(output):
+		os.mkdir(output)
 	run_simulation(input, output, sparc_dir)

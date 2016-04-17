@@ -220,21 +220,11 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 	"""Calculates a block of PDB statistics, and puts all the data into a directory specified by output. For mode, you may pass default_network_mode, sidechain_mode, or secondary_structure_mode."""
 	
 	if mode == default_network_mode:
+		#Each pz will have an array of frequencies, where the frequencies correspond to the following situations:
+		#[distance1_default, helix1, helix5, helix7, sheet0, sheet1, sheet-1, distance2_default, helix1, ..., (up to distance5), nonconsec, helix1, ...]
 		data = {
-			"nonconsec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
-			"short-range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
-			"consec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
-			"consec+secondary" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"default" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"medium" : [[] for i in range(AMINO_ACID_COUNT)],
-			"secondary" : {
-				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
-				secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
-				secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
-				secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
-				secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
-				secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
-				secondary_struct_sheet + "-1" : {}
-			},
 			"permissible" : {
 				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
 				secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
@@ -249,8 +239,8 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 		data = [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)]
 	elif mode == both_orientations_mode:
 		data = {
-			"nonconsec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
-			"short-range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"long_range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"short_range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"consec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"consec+secondary" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
 			"secondary" : {
@@ -299,8 +289,13 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 			secondary_struct_sheet + "-1" : {}, "default": {}, "all": {}
 		}
 	
-	def add_to_data(aa, aa2, tag1, tag2, key, both=False):
+	def add_to_data(aa, aa2, tag1, tag2, key, both=False, struct_type=None):
 		if tag1 < 22 and tag2 < 22:
+			array_mode = -1
+			if not key:
+				array_mode = int(min(math.fabs(aa2.tag - aa.tag), 6) - 1) * 7
+				
+				key = "default"
 			pz = aa.aa_position_zone(aa2).alpha_zone
 			if both:
 				pz2 = aa2.aa_position_zone(aa).alpha_zone
@@ -308,6 +303,15 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 					data[key][tag1][tag2][(pz, pz2)] += 1
 				else:
 					data[key][tag1][tag2][(pz, pz2)] = 1
+			elif array_mode >= 0:
+				if struct_type:
+					struct_idx = next((i for i, ss in enumerate([None, "helix1", "helix5", "helix7", "sheet0", "sheet1", "sheet-1"]) if ss == struct_type), 0)
+					array_mode += struct_idx
+				if pz in data[key][tag1][tag2]:
+					data[key][tag1][tag2][pz][array_mode] += 1
+				else:
+					data[key][tag1][tag2][pz] = [0 for i in xrange(42)]
+					data[key][tag1][tag2][pz][array_mode] = 1
 			else:
 				if pz in data[key][tag1][tag2]:
 					data[key][tag1][tag2][pz] += 1
@@ -487,13 +491,27 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 									data_list[(zone1, zone2)][prev_zone] = 1
 				
 					if mode == default_network_mode:
-						#Nonconsec
+						#Every orientation
+						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i)
+						for aa2 in r:
+							tag2 = aacode(aa2.type)
+							sec_struct = peptide.secondary_structure_aa(aa.tag)
+							sec_struct_2 = peptide.secondary_structure_aa(aa2.tag)
+							if sec_struct and sec_struct_2 and sec_struct[1].start == sec_struct_2[1].start:
+								sec_name = sec_struct[0].type + str(sec_struct[1].identifiers[0])
+							else:
+								sec_name = None
+							if not add_to_data(aa, aa2, tag1, tag2, None, struct_type=sec_name):
+								print "Partial omit %r (unknown aa)." % pdbid
+								reported = True
+								break
+						'''#Nonconsec
 						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=False)
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
-							key = "nonconsec"
+							key = "long_range"
 							if math.fabs(aa2.tag - aa.tag) <= 5:
-								key = "short-range"
+								key = "short_range"
 							if not add_to_data(aa, aa2, tag1, tag2, key):
 								print "Partial omit %r (unknown aa)." % pdbid
 								reported = True
@@ -522,7 +540,7 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 							if not add_to_data(aa, aa2, tag1, tag2, "consec+secondary"):
 								print "Partial omit %r (unknown aa)." % pdbid
 								reported = True
-								break
+								break'''
 
 						#Medium
 						r = peptide.nearby_aa(aa, 10.0, i)
@@ -538,9 +556,9 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
 							if tag1 > tag2 or (tag1 == tag2 and aa.tag > aa2.tag): continue
-							key = "nonconsec"
+							key = "long_range"
 							if math.fabs(aa2.tag - aa.tag) <= 5:
-								key = "short-range"
+								key = "short_range"
 							if not add_to_data(aa, aa2, tag1, tag2, key, both=True):
 								print "Partial omit %r (unknown aa)." % pdbid
 								reported = True
@@ -607,13 +625,20 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 						f.write(str(pzs[0].x) + ", " + str(pzs[0].y) + ", " + str(pzs[0].z) + ", " + str(pzs[1].x) + ", " + str(pzs[1].y) + ", " + str(pzs[1].z) + "; " + str(freq) + "\n")
 				else:
 					for pz, freq in data[key][i][j].iteritems():
-						f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
+						if isinstance(freq, int):
+							freqstr = str(freq)
+						else:
+							freqstr = ""
+							for fr in freq:
+								freqstr += str(fr) + ","
+							freqstr = freqstr[:-1]
+						f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + freqstr + "\n")
 				f.close()
 
 	if mode == default_network_mode:
-		write_data("nonconsec")
+		'''write_data("long_range")
 		write_data("consec")
-		write_data("short-range")
+		write_data("short_range")
 		write_data("consec+secondary")
 		
 		#Secondary
@@ -623,7 +648,8 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 			f = open(join(write_path, sec_struct_type + ".txt"), 'w')
 			for pz, freq in data["secondary"][sec_struct_type].iteritems():
 				f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
-			f.close()
+			f.close()'''
+		write_data("default")
 
 		#Medium
 		medium_path = join(output, "medium")
@@ -655,9 +681,9 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 				f.write("{:.0f},{:.0f},{:.0f};{}\n".format(pz.x, pz.y, pz.z, freqstr))
 			f.close()
 	elif mode == both_orientations_mode:
-		write_data("nonconsec", twopzs=True)
+		write_data("long_range", twopzs=True)
 		write_data("consec", twopzs=True)
-		write_data("short-range", twopzs=True)
+		write_data("short_range", twopzs=True)
 		write_data("consec+secondary", twopzs=True)
 		
 		#Secondary
@@ -732,11 +758,12 @@ def calculate_pdb_stats_network(input, output, mode=default_network_mode):
 	with open(input, 'r') as file:
 		contents = file.readlines()
 	#contents = numpy.random.choice(contents, 500)
-	block_size = 50
+	block_size = 100
 	i = 0
 	blocks = int(math.ceil(len(contents) / block_size))
 	if mode == default_network_mode:
-		time = 3.0 * len(contents)
+		rate = 1.8
+		time = rate * len(contents)
 		time_unit = "seconds"
 		if time > 60:
 			time /= 60.0
@@ -744,13 +771,13 @@ def calculate_pdb_stats_network(input, output, mode=default_network_mode):
 			if time > 60:
 				time /= 60.0
 				time_unit = "hours"
-		print "NOTE: The calculation process will be performed in 50-structure blocks. Generally this takes roughly 3 seconds per structure, so with {} blocks your job will likely take about {:.2f} {}.".format(blocks, time, time_unit)
+		print "NOTE: The calculation process will be performed in {}-structure blocks. Generally this takes roughly {} seconds per structure, so with {} blocks your job will likely take about {:.2f} {}.".format(block_size, rate, blocks, time, time_unit)
 	
 	pool = multiprocessing.Pool(processes=3, initializer=pool_initializer, maxtasksperchild=1)
 	partial_block_stats = partial(pool_block_stats_network, input, output, mode)
 	zipped = [(contents[block_size * k : min(block_size * (k + 1), len(contents))], k) for k in xrange(i, blocks)]
 	#print zipped
-	pool.map(partial_block_stats, zipped)
+	pool.map_async(partial_block_stats, zipped)
 	pool.close()
 	pool.join()
 	print "done"

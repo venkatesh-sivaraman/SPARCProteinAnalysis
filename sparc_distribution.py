@@ -5,30 +5,6 @@ from loading_indicator import *
 
 #MARK: - Distributions
 
-sec_structs = [	secondary_struct_helix + "1", secondary_struct_helix + "2",
-			   secondary_struct_helix + "3", secondary_struct_helix + "4",
-			   secondary_struct_helix + "5", secondary_struct_helix + "6",
-			   secondary_struct_helix + "7", secondary_struct_helix + "8",
-			   secondary_struct_helix + "9", secondary_struct_helix + "10",
-			   secondary_struct_sheet + "0", secondary_struct_sheet + "1",
-			   secondary_struct_sheet + "-1"]
-
-def _secondary_structures_dict(inner_value={}):
-	global sec_structs
-	sec_dict = {}
-	for ss in sec_structs:
-		sec_dict[ss] = inner_value
-	return sec_dict
-
-def _is_valid_secondary_structure(struct_type):
-	global sec_structs
-	if not struct_type:
-		return False
-	if isinstance(struct_type, basestring):
-		return struct_type in sec_structs
-	if len(struct_type) > 1:
-		return (struct_type[0].type + str(struct_type[1].identifiers[0])) in sec_structs
-
 class SPARCBasicDistributionManager (FrequencyDistributionManager):
 	"""The basic distribution handles just frequencies. It represents a noncommutative potential function for EITHER nonconsecutive or consecutive data."""
 	
@@ -121,7 +97,7 @@ class SPARCBasicDistributionManager (FrequencyDistributionManager):
 		for aa in data:
 			if not aa: continue
 			sec_struct = protein.secondary_structure_aa(aa.tag)
-			if self.blocks_secondary_structures and _is_valid_secondary_structure(sec_struct): continue
+			if self.blocks_secondary_structures and is_valid_secondary_structure(sec_struct): continue
 			if prior != 2:
 				nearby = []
 				if aa.tag > 0 and prior != False: nearby.append(protein.aminoacids[aa.tag - 1])
@@ -220,8 +196,8 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 	def __init__(self, frequencies_path):
 		"""frequencies_path should be a path to a directory of alpha zones paired with frequencies for individual secondary structure types."""
 		self.alpha_frequencies = {}
-		self.total_interactions = _secondary_structures_dict(inner_value=0)
-		self.median_frequencies = _secondary_structures_dict(inner_value=0)
+		self.total_interactions = secondary_structures_dict(inner_value=0)
+		self.median_frequencies = secondary_structures_dict(inner_value=0)
 		self.blocks_secondary_structures = False
 		self.identifier = os.path.basename(frequencies_path)
 		self.total_median = 0
@@ -289,7 +265,7 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 		for aa in data:
 			if not aa: continue
 			sec_struct = protein.secondary_structure_aa(aa.tag)
-			if not _is_valid_secondary_structure(sec_struct): continue
+			if not is_valid_secondary_structure(sec_struct): continue
 			sec_struct_type = sec_struct[0].type + str(sec_struct[1].identifiers[0])
 			if prior != 2:
 				nearby = []
@@ -326,14 +302,14 @@ class SPARCSecondaryDistributionManager (SPARCBasicDistributionManager):
 		ptcomps, freq = line.strip().split(";")
 		alpha = Point3D(*ptcomps.split(","))
 		if alpha not in self.alpha_frequencies:
-			self.alpha_frequencies[alpha] = _secondary_structures_dict(inner_value=0)
+			self.alpha_frequencies[alpha] = secondary_structures_dict(inner_value=0)
 		self.alpha_frequencies[alpha][sec_struct_type] = float(freq)
 		self.total_interactions[sec_struct_type] += float(freq)
 	
 	def load_frequencies(self, path):
 		files = os.listdir(path)
 		percentage = 0
-		self.total_interactions = _secondary_structures_dict(inner_value=0)
+		self.total_interactions = secondary_structures_dict(inner_value=0)
 		loading_indicator.add_loading_data(len(files))
 		for n, indfile in enumerate(files):
 			loading_indicator.update_progress(1)
@@ -446,7 +422,7 @@ class SPARCSecondaryBothDistributionManager (SPARCSecondaryDistributionManager):
 		coords = ptcomps.split(",")
 		alpha = int(sum((int(coords[i]) + 10) * (20 ** i) for i in xrange(len(coords))))
 		if alpha not in self.alpha_frequencies:
-			self.alpha_frequencies[alpha] = _secondary_structures_dict(inner_value=0)
+			self.alpha_frequencies[alpha] = secondary_structures_dict(inner_value=0)
 		self.alpha_frequencies[alpha][sec_struct_type] = float(freq)
 		self.total_interactions[sec_struct_type] += float(freq)
 

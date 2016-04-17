@@ -58,3 +58,30 @@ def find_secondary_structure(secondary_structures, aa_idx):
 	if current_strand:
 		return (current_struct, current_strand)
 	return None
+
+#MARK: - Built-in Secondary Structures
+
+sec_structs = [	secondary_struct_helix + "1", secondary_struct_helix + "2",
+			   secondary_struct_helix + "3", secondary_struct_helix + "4",
+			   secondary_struct_helix + "5", secondary_struct_helix + "6",
+			   secondary_struct_helix + "7", secondary_struct_helix + "8",
+			   secondary_struct_helix + "9", secondary_struct_helix + "10",
+			   secondary_struct_sheet + "0", secondary_struct_sheet + "1",
+			   secondary_struct_sheet + "-1"]
+
+def secondary_structures_dict(inner_value={}):
+	global sec_structs
+	sec_dict = {}
+	for ss in sec_structs:
+		sec_dict[ss] = inner_value
+	return sec_dict
+
+def is_valid_secondary_structure(struct_type):
+	global sec_structs
+	if not struct_type:
+		return False
+	if isinstance(struct_type, basestring):
+		return struct_type in sec_structs
+	if len(struct_type) > 1:
+		return (struct_type[0].type + str(struct_type[1].identifiers[0])) in sec_structs
+
