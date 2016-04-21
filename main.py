@@ -35,19 +35,19 @@ def test_probsource(prob, peptide):
 			aa.set_axes(old[i].x_axis, old[i].y_axis, old[i].z_axis)'''
 
 def load_dists(basepath, weights={}, concurrent=True, secondary=True):
-	print "Loading SPARC..."
+	print "Loading SPARC from {}...".format(basepath)
 	if not reference_state.is_initialized():
 		if os.path.exists(os.path.join(basepath, "reference_states.txt")):
 			reference_state.load_reference_state(os.path.join(basepath, "reference_states.txt"))
 		if os.path.exists(os.path.join(basepath, "possible_interactions")):
 			reference_state.load_possible_interactions(os.path.join(basepath, "possible_interactions"))
-	nonconsec = os.path.join(basepath, "nonconsec")
+	nonconsec = os.path.join(basepath, "long_range")
 	if secondary or not os.path.exists(os.path.join(basepath, "consec+secondary")):
 		consec = os.path.join(basepath, "consec") #+secondary
 	else:
 		consec = os.path.join(basepath, "consec+secondary")
 	medium = os.path.join(basepath, "medium")
-	short_range = os.path.join(basepath, "short-range")
+	short_range = os.path.join(basepath, "short_range")
 	secondary_path = os.path.join(basepath, "secondary")
 	DistClass = SPARCBasicDistributionManager #SPARCBothOrientationDistributionManager
 	if concurrent == False:
@@ -139,6 +139,12 @@ def load_central_dist(basepath, secondary=True):
 	else:
 		return [SPARCCentralDistributionPuppet(central_manager, sparc_consec_secondary_mode), SPARCCentralDistributionPuppet(central_manager, sparc_short_range_mode), SPARCCentralDistributionPuppet(central_manager, sparc_long_range_mode), medium_dist]
 
+def extract_dist_weights(dists):
+	ret = {}
+	for d in dists:
+		ret[d.identifier] = d.weight
+	return ret
+
 def apply_dist_weights(dists, w):
 	for d in dists:
 		if d.identifier in w:
@@ -204,17 +210,6 @@ def func(weights={ "consec": 3.0, "secondary": 3.0, "short_range": 2.0, "long_ra
 	simulate_fold(dists, seq="SAEDC", outname=base + "seg9.pdb", sec_structs="helix,1,1,5")
 	print "Moving to segment 10"
 	simulate_fold(dists, seq="LRTCGGA", outname=base + "seg10.pdb", sec_structs="helix,1,1,5")
-	'''#test_folding_parameters(dists)
-	apply_dist_weights(dists, weights)'''
-	'''segment_fold(dists, seq1="RPDFCLE", seq2="PPYAG", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg1.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg2.pdb"], outname=base + "seg12.pdb")
-	segment_fold(dists, seq1="ACRAR", seq2="IIRYFYN", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg3.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg4.pdb"], outname=base + "seg34.pdb")
-	segment_fold(dists, seq1="AKAG", seq2="LCQTFVY", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg5.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg6.pdb"], outname=base + "seg56.pdb")
-	segment_fold(dists, seq1="GGCRA", seq2="KRNNFK", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg7.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg8.pdb"], outname=base + "seg78.pdb")
-	segment_fold(dists, seq1="SAEDC", seq2="LRTCGGA", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg9.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments-test/seg10.pdb"], outname=base + "seg910.pdb")
-	segment_fold(dists, seq1="RPDFCLEPPYAG", seq2="ACRARIIRYFYN", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg12.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg34.pdb"], outname=base + "seg1234.pdb", sec_structs="helix,5,2,7\nsheet,0,18,24")
-	segment_fold(dists, seq1="AKAGLCQTFVY", seq2="GGCRAKRNNFK", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg56.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg78.pdb"], outname=base + "seg5678.pdb", sec_structs="sheet,0,5,11")
-	segment_fold(dists, seq1="AKAGLCQTFVYGGCRAKRNNFK", seq2="SAEDCLRTCGGA", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg5678.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg910.pdb"], outname=base + "seg5678910.pdb", sec_structs="sheet,0,5,11\nhelix,1,23,32")
-	segment_fold(dists, seq1="RPDFCLEPPYAGACRARIIRYFYN", seq2="AKAGLCQTFVYGGCRAKRNNFKSAEDCLRTCGGA", infiles=["/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg1234.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/new-segments/seg5678910.pdb"], outname=base + "seg12345678910.pdb", sec_structs="helix,5,2,7\nsheet,0,18,24\nsheet,0,29,35\nhelix,1,47,56")'''
 
 def test_folding_parameters(dists):
 	permissions = AAPermissionsManager("/Users/venkatesh-sivaraman/Desktop/sciencefair/allowed-zones")
@@ -340,6 +335,15 @@ def supplement_natives(input):
 		del contents
 		gc.collect()
 
+def analyze_relative_orientations(path):
+	peptide = Polypeptide()
+	peptide.read(path, otheratoms=True)
+	for i, aa in enumerate(peptide.aminoacids):
+		if len(peptide.aminoacids) > i + 1:
+			zone = aa.aa_position_zone(peptide.aminoacids[i + 1]).alpha_zone
+			retro_zone = peptide.aminoacids[i + 1].aa_position_zone(aa).alpha_zone
+			print "{}\t{}\t{}".format(i, zone, retro_zone)
+
 def aminoacid_type_variation():
 	aa1 = AminoAcid(amino_acid_alanine, 1)
 	aa1.set_axes(Point3D(1, 0, 0), Point3D(0, 1, 0), Point3D(0, 0, 1))
@@ -367,7 +371,8 @@ if __name__ == '__main__':
 	#print determine_omits("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/all_pdb_ids.txt", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Nonredundant/omits.txt")
 	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/sparc_scores", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-analysis/rmsds", None, numweights=4, start=[0, 2, 3, 4])
 	#load_central_dist("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/consolidated-sparc/SPARC 4")
-	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp-both-or", numweights=4)
+	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/corrected", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4, tmscore=True)
+	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/corrected", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4, tmscore=True)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/rw/casp-rw", numweights=1)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/rw/tasser-rw", numweights=1)
 	#best_weights("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/goap/casp-goap", numweights=1)
@@ -376,7 +381,8 @@ if __name__ == '__main__':
 	#Average: Final: the combos [1, 1, 5, 1] had a total of 1 correct guesses, with R^2 0.486152814813
 	#Interaction Median: Final: the combos [1, 5, 5, 1] had a total of 1 correct guesses, with R^2 0.335183666746
 	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/tasser-correct-orient", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/tasser", None, numweights=4, tmscore=True) #"/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives"
-	best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoy Output/casp-correct-orient", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/TM-scores/casp", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/casp-natives", numweights=4, tmscore=True)
+	#best_weights_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-long-refine-scores/sparc", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-long-refine-scores/tm", None, numweights=5)
+	#analyze_relative_orientations("/Users/venkatesh-sivaraman/Downloads/1QLQ.pdb")
 	#decoys_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/tasser-decoys", None, "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/rmsd") #/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Decoys/casp-decoys,
 	#min1 = min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-laptop/seg12.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native.pdb", range=[1, 12], writeout=True)
 	#min2 = min_rmsd("/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/bpti-laptop/seg56.pdb", "/Users/venkatesh-sivaraman/Documents/School/Science Fair/2016-proteins/Simulations/segments/native.pdb", range=[36, 46])

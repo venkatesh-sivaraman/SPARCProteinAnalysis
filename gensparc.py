@@ -42,20 +42,20 @@ if __name__ == '__main__':
 		num_possible_interacting(input, data_dir)
 		aggregate_possible_interactions(data_dir, sparc_dir)
 	else:
-		print "Computing data from PDB structures..."
+		'''print "Computing data from PDB structures..."
 		if both:
 			calculate_pdb_stats_network(input, data_dir, mode=both_orientations_mode)
 		else:
 			calculate_pdb_stats_network(input, data_dir, mode=default_network_mode)
 		print "Aggregating orientation and solvent data..."
-		aggregate_consolidated_data(data_dir, sparc_dir)
+		#aggregate_consolidated_data(data_dir, sparc_dir)
 		aggregate_networkdata(data_dir, sparc_dir, both=both)
-		print "Formatting data..."
+		print "Formatting data..."'''
 		for path in os.listdir(sparc_dir):
 			if os.path.isdir(os.path.join(sparc_dir, path)) and path != "medium" and "permissible_sequences" not in path and path != "possible_interactions":
 				print path
 				write_median_frequencies(os.path.join(sparc_dir, path))
-		if not both:
+		'''if not both:
 			format_hydrophobicity_dist(os.path.join(sparc_dir, "medium"), os.path.join(sparc_dir, "medium-2"))
 			os.system("rm -rf \"{}\"".format(os.path.join(sparc_dir, "medium")))
 			os.rename(os.path.join(sparc_dir, "medium-2"), os.path.join(sparc_dir, "medium"))
@@ -63,4 +63,4 @@ if __name__ == '__main__':
 			#generate_permissible_sequences(input, seq_dir)
 			print "Aggregating permissible sequence data..."
 			aggregate_permissible_sequences(data_dir, os.path.join(sparc_dir, "permissible_sequences"), cutoff=0.01)
-		print "Finished generating SPARC."
+		print "Finished generating SPARC."'''

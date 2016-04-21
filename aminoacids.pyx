@@ -394,6 +394,35 @@ class AminoAcid(object):
 		else:
 			self.mass = 0.0
 
+		sidechain_markers = {
+			amino_acid_alanine: None,
+			amino_acid_arginine: "CG",
+			amino_acid_asparagine: "CG",
+			amino_acid_asparagine_or_aspartic_acid: "CG",
+			amino_acid_aspartic_acid: "CG",
+			amino_acid_cysteine: "S",
+			amino_acid_glutamic_acid: "CG",
+			amino_acid_glutamine: "CG",
+			amino_acid_glutamine_or_glutamic_acid: "CG",
+			amino_acid_glycine: None,
+			amino_acid_histidine: ["CG", "CD2"],
+			amino_acid_isoleucine: "CG2",
+			amino_acid_leucine: "CG",
+			amino_acid_lysine: "CG",
+			amino_acid_methionine: "CG",
+			amino_acid_phenylalanine: ["CG", "CD1"],
+			amino_acid_proline: "CG",
+			amino_acid_serine: "OG",
+			amino_acid_threonine: "OG1",
+			amino_acid_tryptophan: ["CG", "CD1"],
+			amino_acid_tyrosine: ["CG", "CD1"],
+			amino_acid_valine: "CG1"
+		}
+		if self.type in sidechain_markers:
+			self.sidechain_marker = sidechain_markers[self.type]
+		else:
+			self.sidechain_marker = None
+
 	def add_observer(self, key, callback):
 		"""Pass in a string key ("acarbon" and "axes" at present) and a function object to be notified when the value changes.
 			Callback should accept three arguments: an AminoAcid object, key, and old value. (If key="axes", old value is a tuple of axes.)"""
@@ -417,7 +446,7 @@ class AminoAcid(object):
 		"""Use the cross products of j and k to determine two possible vectors perpendicular to their plane, and use the one that maximizes the angle with c."""
 		crossproduct1 = Point3D(j.y * k.z - j.z * k.y, j.z * k.x - j.x * k.z, j.x * k.y - j.y * k.x)
 		crossproduct2 = Point3D(k.y * j.z - k.z * j.y, k.z * j.x - k.x * j.z, k.x * j.y - k.y * j.x)
-		return (crossproduct1 if (crossproduct1.anglewith(c) > crossproduct2.anglewith(c)) else crossproduct2).normalize()
+		return (crossproduct1 if (crossproduct1.anglewith(c) < crossproduct2.anglewith(c)) else crossproduct2).normalize()
 	
 	def compute_coordinate_system_vectors(self):
 		"""Compute the vectors i, j, and k that produce a right-handed coordinate system such that the tetrahedral structure of the amino acid is represented in a constant manner: the N and C atoms are located in the -x, -z region, while the sidechain points upward and the hydrogen atom points forward along the xz-plane."""

@@ -20,7 +20,7 @@ from distributions import *
 from molecular_systems import *
 from probsource import *
 import random
-from main import load_dists, apply_dist_weights, load_central_dist
+from main import load_dists, apply_dist_weights, load_central_dist, extract_dist_weights
 from pdbanalysis import *
 import os, sys
 import numpy
@@ -459,6 +459,9 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 	sims = int(sims)
 	candidates = int(candidates)
 	
+	cache_weights = extract_dist_weights(dists)
+	apply_dist_weights(dists, {"consec": 0.0, "secondary": 0.0, "short_range": 3.0, "long_range": 1.0, "medium": 4.0})
+	
 	permissions = AAPermissionsManager(os.path.join(sparc_dir, "permissions"), os.path.join(sparc_dir, "permissible_sequences", "all.txt"))
 	sec_struct_permissions = AASecondaryStructurePermissionsManager(os.path.join(sparc_dir, "permissible_sequences"))
 	peptide = Polypeptide()
@@ -518,9 +521,12 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 	confscores = confscores[:min(len(confscores), candidates)]
 	print "The range of", len(confscores), "scores is", confscores[0][2], "to", confscores[-1][2]
 	gc.collect()
+	
+	apply_dist_weights(dists, cache_weights)
 
 	file = open(os.path.join(output, outname), 'w')
 	scoresfile = open(os.path.join(output, outname[:-4] + "-scores.txt"), 'w')
+	scoresfile.write("\t".join(dist.identifier for dist in dists) + "\n")
 	pdb_model_idx = 1
 	prob = AAProbabilitySource(peptide, dists, permissions, sec_struct_permissions)
 	prob.mode = psource_gentle_mode
@@ -546,10 +552,10 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 		curscore = 0.0
 		for dist in dists:
 			sc = dist.score(peptide, peptide.aminoacids)
-			t_scores += str(sc) + " (" + dist.identifier + ") "
+			t_scores += "{:.5f}\t".format(sc)
 			curscore += sc
 		scores.append(curscore)
-		scoresfile.write(str(pdb_model_idx) + " " + t_scores + "\n")
+		scoresfile.write(str(pdb_model_idx) + " " + t_scores[:-1] + "\n")
 		file.write(system.pdb(modelno=pdb_model_idx))
 		pdb_model_idx += 1
 		for n in xrange(sims):
@@ -560,10 +566,10 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 			t_scores = ""
 			for dist in dists:
 				sc = dist.score(peptide, peptide.aminoacids, system=system)
-				t_scores += str(sc) + " (" + dist.identifier + ") "
+				t_scores += "{:.5f}\t".format(sc)
 				curscore += sc
 			scores.append(curscore)
-			scoresfile.write(str(pdb_model_idx) + " " + t_scores + "\n")
+			scoresfile.write(str(pdb_model_idx) + " " + t_scores[:-1] + "\n")
 			file.write(system.pdb(modelno=pdb_model_idx))
 			pdb_model_idx += 1
 			#Save the conformation if it is the best so far.
@@ -583,66 +589,6 @@ def segment_fold(sparc_dir, dists, seq, range1, range2, infiles, output, sec_str
 			peptide.hashtable = None
 		gc.collect()
 
-	'''new_best_models = []
-	new_best_scores = [1000000 for n in xrange(model_count)]
-	prob.mode = psource_gentle_mode
-	for k, model in enumerate(best_models):
-		print "Refining model {}".format(k)
-		for i, aa in enumerate(peptide.aminoacids):
-			aa.acarbon = model[i].alpha_zone
-			aa.set_axes(model[i].x_axis, model[i].y_axis, model[i].z_axis)
-		#Keep track of how long the model has had this score.
-		running_count = 0
-		last_score = 0.0
-		new_best_models.append([])
-		currscore = sum(dist.score(peptide, peptide.aminoacids) for dist in dists)
-		print "First has score", currscore, system, prob
-		while running_count < 50:
-			seglen = segment_length(currscore / len(peptide.aminoacids))
-			folding_iteration(system, [prob], seglen)
-			peptide.center()
-			newscore = sum(dist.score(peptide, peptide.aminoacids) for dist in dists)
-			if last_score == newscore:
-				running_count += 1
-			else:
-				running_count = 0
-				last_score = newscore
-			if newscore < new_best_scores[k]:
-				print "New best score"
-				new_best_scores[k] = newscore
-				new_best_models[k] = [PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in peptide.aminoacids]
-			elif newscore > new_best_scores[k] + 20.0:
-				print "Too unstable"
-				break
-	for model in new_best_models:
-		for i, aa in enumerate(peptide.aminoacids):
-			aa.acarbon = model[i].alpha_zone
-			aa.set_axes(model[i].x_axis, model[i].y_axis, model[i].z_axis)
-		file.write(system.pdb(modelno=pdb_model_idx))
-		pdb_model_idx += 1
-	print "Best model scores:"
-	for i in xrange(model_count):
-		print "{} ({})".format(i, new_best_scores[i])'''
-
-
-	'''gentle_cutoff = 0
-	pdb_model_idx = 2
-	a = datetime.datetime.now()
-	for i in xrange(500):
-		constructive_folding_iteration(peptide, prob)
-		#peptide.center()
-		curscore = 0.0
-		for aa in peptide.aminoacids:
-			aa.localscore = sum(dist.score(peptide, [aa]) for dist in dists)
-			curscore += aa.localscore
-		scores.append(curscore)
-		t_scores = ""
-		for dist in dists: t_scores += str(dist.score(peptide, peptide.aminoacids)) + " (" + dist.identifier + ") "
-		print i, t_scores
-		#print i, scores[-1] / len(peptide.aminoacids)
-		file.write(system.pdb(modelno=pdb_model_idx))
-		pdb_model_idx += 1'''
-		
 	b = datetime.datetime.now()
 	del peptide.aminoacids[:]
 	peptide = None
@@ -706,25 +652,28 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 
 		pdb_model_idx += 1
 		file = open(os.path.join(output, outname), 'a')
+		scoresfile = None
 	else:
 		file = open(os.path.join(output, outname), 'w')
 		peptide.randomcoil(seq[range[0] - 1 : range[1]], permissions=permissions, struct_permissions=sec_struct_permissions)
 		print seq[range[0] - 1 : range[1]], peptide.secondary_structures
 		system.center()
 		scoresfile = open(os.path.join(output, outname[:-4] + "-scores.txt"), 'w')
+		scoresfile.write("\t".join(dist.identifier for dist in dists) + "\n")
 		
 		t_scores = ""
 		curscore = 0.0
 		for dist in dists:
 			sc = dist.score(peptide, peptide.aminoacids, system=system)
-			t_scores += str(sc) + " (" + dist.identifier + ") "
+			t_scores += "{:.5f}\t".format(sc)
 			curscore += sc
 		scores.append(curscore)
-		scoresfile.write("-1 " + t_scores + "\n")
+		scoresfile.write("1 " + t_scores[:-1] + "\n")
 		file.write(system.pdb(modelno=1))
 		
 		gentle_cutoff = 0
 		proximity = 2.0
+		prob.erratic_proximity = 1.0
 		for i in xrange(n):
 			print "{} ({})".format(i, outname)
 			#if gentle_cutoff != 0:
@@ -738,11 +687,11 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 			curscore = 0.0
 			for dist in dists:
 				sc = dist.score(peptide, peptide.aminoacids, system=system)
-				t_scores += str(sc) + " (" + dist.identifier + ") "
+				t_scores += "{:.5f}\t".format(sc)
 				curscore += sc
 			scores.append(curscore)
 			#print i, t_scores
-			scoresfile.write(str(i) + " " + t_scores + "\n")
+			scoresfile.write(str(pdb_model_idx) + " " + t_scores[:-1] + "\n")
 			#print i, scores[-1] / len(peptide.aminoacids), dists[-1].score(peptide, peptide.aminoacids)
 			#if scores[-1] / len(peptide.aminoacids) <= -100.0:
 				#file.write(peptide.xyz(escaped=False))
@@ -797,16 +746,26 @@ def simulate_fold(sparc_dir, dists, seq, range, output, outname="simulation.pdb"
 			seglen = segment_length(currscore / len(peptide.aminoacids))
 			folding_iteration(system, [prob], seglen)
 			peptide.center()
-			newscore = sum(dist.score(peptide, peptide.aminoacids, system=system) for dist in dists)
+
+			t_scores = ""
+			newscore = 0.0
+			for dist in dists:
+				sc = dist.score(peptide, peptide.aminoacids, system=system)
+				t_scores += "{:.5f}\t".format(sc)
+				newscore += sc
+			
 			if last_score == newscore:
 				running_count += 1
 			else:
 				running_count = 0
 				last_score = newscore
 			if newscore < new_best_scores[k]:
-				print "New best score"
 				new_best_scores[k] = newscore
 				new_best_models[k] = [PositionZone(aa.acarbon, aa.i, aa.j, aa.k) for aa in peptide.aminoacids]
+				if not refine:
+					scoresfile.write(str(pdb_model_idx) + " " + t_scores[:-1] + "\n")
+				file.write(system.pdb(modelno=pdb_model_idx))
+				pdb_model_idx += 1
 			elif newscore > new_best_scores[k] + 20.0:
 				print "Too unstable"
 				break
@@ -868,7 +827,7 @@ def start_run((run, seq, sec_structs, sparc_dir)):
 			apply_dist_weights(distributions, { "consec": 2.0, "secondary": 2.0, "short_range": 4.0, "long_range": 5.0, "medium": 4.0 })
 		return simulate_fold(sparc_dir, distributions, seq, range, output, outname=run[1][0], **extra_args)
 
-def run_simulation(directives, output, sparc_dir):
+def run_simulation(directives, output, sparc_dir, num_threads):
 	"""This method takes the simulation directives found at the input path and performs the simulations."""
 	seq = None
 	sec_structs = None
@@ -898,7 +857,7 @@ def run_simulation(directives, output, sparc_dir):
 
 	for i, group in enumerate(run_groups):
 		print "Starting run group", i
-		with ProcessPoolExecutor(max_workers=3) as pool:
+		with ProcessPoolExecutor(max_workers=num_threads) as pool:
 			for outname, time in pool.map(start_run, [(run, seq, sec_structs, sparc_dir) for run in group]):
 				print "Finished simulation of {} in {} seconds".format(outname, time)
 
@@ -907,6 +866,7 @@ if __name__ == '__main__':
 	input = None
 	output = None
 	sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
+	num_threads = 3
 	i = 0
 	while i < len(args):
 		if args[i].lower() == "-i":
@@ -921,8 +881,12 @@ if __name__ == '__main__':
 			assert len(args) > i + 1, "Not enough arguments"
 			sparc_dir = args[i + 1]
 			i += 2
+		elif args[i].lower() == "-threads":
+			assert len(args) > i + 1, "Not enough arguments"
+			num_threads = int(args[i + 1])
+			i += 2
 		else:
 			assert False, "Unexpected command-line argument {}".format(args[i])
 	if not os.path.exists(output):
 		os.mkdir(output)
-	run_simulation(input, output, sparc_dir)
+	run_simulation(input, output, sparc_dir, num_threads)

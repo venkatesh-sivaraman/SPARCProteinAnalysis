@@ -746,7 +746,6 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 		last_read = 0
 		modelno = 0
 		peptide = None
-		print confs2
 		with open(path, 'r') as file:
 			lines = file.readlines()
 			cache = None
@@ -768,7 +767,6 @@ class AAConstructiveProbabilitySource(AAProbabilitySource):
 							del confs2[idx]
 							continue
 						confs2[idx][0] = [aa.pz_representation() for aa in peptide.aminoacids]
-						print modelno, idx, confs2[idx][0]
 						cache = peptide.aminoacids
 					last_read = i + 1
 			del lines, cache

@@ -205,7 +205,14 @@ def write_median_frequencies(input):
 				line = line.strip()
 				if len(line) == 0 or ";" not in line: continue
 				comps = line.split(";")
-				dist.append([float(x) for x in comps[1].split(",")])
+				nums = [float(x) for x in comps[1].split(",")]
+				i = 0
+				while i < len(dist):
+					dist[i].append(nums[i])
+					i += 1
+				while i < len(nums):
+					dist.append([nums[i]])
+					i += 1
 		means = []
 		interaction_medians = []
 		medians = []
@@ -1598,7 +1605,7 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 		else:
 			for w in genweights(levels - 1, min, max):
 				for i in xrange(min, max): yield w + [i]
-	for weightlist in genweights(numweights, 1, 6):
+	for weightlist in genweights(numweights, 0, 5):
 		weights.append(weightlist)
 	maxcorrect = 0
 	maxweights = []
@@ -1644,6 +1651,8 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 		total_r2 = 0.0
 		num_r2 = 0
 		total_best_rmsd = 0.0
+		total_score_rank = 0
+		total_rmsd_rank = 0
 		sparc_scores = []
 		rmsd_scores = []
 		#if w != [4, 1, 4, 5] and numweights == 4: continue
@@ -1686,11 +1695,17 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 					min_rmsd = rmsd_list[filename]
 					min_rmsd_score = score
 					min_rmsd_filename = filename
-			#print min_filename, min_score_rmsd, min_rmsd_filename, min_rmsd
-			if min_filename[-1] == "1": #min_filename == min_rmsd_filename:
+			if min_filename == min_rmsd_filename: #min_filename[-1] == "1":
 				correct_model += 1
 			m, b, r2, p, se = linregress(sparc_scores, rmsd_scores)
 			extra = ""
+			score_rank = len([x for x in sparc_scores if x < min_rmsd_score])
+			if tmscore:
+				rmsd_rank = len([x for x in rmsd_scores if x > min_score_rmsd])
+			else:
+				rmsd_rank = len([x for x in rmsd_scores if x < min_score_rmsd])
+			total_score_rank += score_rank
+			total_rmsd_rank += rmsd_rank
 			if groups:
 				group_correct = 0
 				subgroups = group_rmsds[path]
@@ -1698,19 +1713,19 @@ def best_weights_rmsd(input, rmsd_files, native_paths, numweights=4, start=0, gr
 					min_group = min(subgroup, key=lambda x: (scores[x] if x in scores else 1000000.0))
 					if int(min_group.split("_")[1]) < 3: group_correct += 1
 				extra = "\t" + str(group_correct) + "\t" + str(len(subgroups))
-			if w == [1, 5, 5, 1] or numweights != 4:
+			if w == [1, 5, 5, 1]:
 				best_rmsd = 0
 				if tmscore:
 					best_rmsd = max(rmsd_scores)
 				else:
 					best_rmsd = min(rmsd_scores)
-				print min_filename + "\t" + str(sum(rmsd_scores) / float(len(rmsd_scores))) + "\t" + str(best_rmsd) + "\t" + str(len([x for x in sparc_scores if x < min_rmsd_score])) + "\t" + str(min_score_rmsd) + "\t" + str(r2 ** 2) + extra
+				print min_filename + "\t" + str(sum(rmsd_scores) / float(len(rmsd_scores))) + "\t" + str(best_rmsd) + "\t" + str(score_rank) + "\t" + str(min_score_rmsd) + "\t" + str(r2 ** 2) + extra
 			total_r2 += r2 ** 2
-			total_best_rmsd += min_score_rmsd
+			total_best_rmsd += min_score_rmsd / min_rmsd
 			num_r2 += 1
 			del sparc_scores[:], rmsd_scores[:]
 		total_r2 /= float(num_r2)
-		print "{}\t{}\t{}\t{}\t{}".format(w, correct, correct_model, total_r2, total_best_rmsd / float(num_r2))
+		print "{}\t{}\t{}\t{}\t{}\t{}\t{}".format(w, correct, correct_model, total_r2, total_best_rmsd / float(num_r2), total_score_rank / float(num_r2), total_rmsd_rank / float(num_r2))
 		if total_r2 > max_rsq:
 			maxweights = w
 			maxcorrect = correct

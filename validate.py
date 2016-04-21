@@ -10,10 +10,7 @@ rmsd_mode = "rmsd"
 tmscore_mode = "tmscore"
 sparc_mode = "sparc"
 
-def sparc_validation(input, native, range, output=None):
-	sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
-	weights = { "consec": 4.0, "secondary": 4.0, "short_range": 1.0, "long_range": 4.0, "medium": 5.0 }
-	distributions = load_dists(sparc_dir, secondary=True, weights=weights)
+def sparc_validation(input, native, range, output=None, distributions=None):
 	backup_sec_structs = []
 	if output:
 		outfile = open(output, "w")
@@ -73,6 +70,12 @@ if __name__ == '__main__':
 	input = os.path.realpath(input)
 	native = os.path.realpath(native)
 
+	distributions = None
+	if mode == sparc_mode:
+		sparc_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "potential")
+		weights = {} #{ "consec": 4.0, "secondary": 4.0, "short_range": 1.0, "long_range": 4.0, "medium": 5.0 }
+		distributions = load_dists(sparc_dir, secondary=True, weights=weights)
+
 	if directive:
 		seq = None
 		runs = []
@@ -90,6 +93,7 @@ if __name__ == '__main__':
 					if line[0] == "#": line = line[1:]
 					comps = line.strip().split(";")
 					runs.append([[y.strip() for y in x.split(",")] for x in comps])
+		completed_outputs = []
 		for run in runs:
 			modelname = None
 			if len(run[1]) > 1: # run[1] must be the input paths, and run[2] must be the output path name
@@ -100,6 +104,7 @@ if __name__ == '__main__':
 				range = [int(x) for x in run[0][0].split("-")]
 			if output:
 				if os.path.exists(os.path.join(output, modelname[:-4] + ".txt")): continue
+			if modelname in completed_outputs: continue
 			if not os.path.exists(os.path.join(input, modelname)):
 				print modelname, "does not exist, skipping"
 				continue
@@ -116,10 +121,11 @@ if __name__ == '__main__':
 			elif mode == sparc_mode:
 				if output:
 					print modelname, "-->", modelname[:-4] + ".txt"
-					sparc_validation(os.path.join(input, modelname), native, range, os.path.join(output, modelname[:-4] + ".txt"))
+					sparc_validation(os.path.join(input, modelname), native, range, os.path.join(output, modelname[:-4] + ".txt"), distributions=distributions)
 				else:
 					print modelname
-					sparc_validation(os.path.join(input, modelname), native, range)
+					sparc_validation(os.path.join(input, modelname), native, range, distributions=distributions)
+			completed_outputs.append(modelname)
 	else:
 		if os.path.isdir(input):
 			for path in os.listdir(input):

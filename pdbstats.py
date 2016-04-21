@@ -223,7 +223,20 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 		#Each pz will have an array of frequencies, where the frequencies correspond to the following situations:
 		#[distance1_default, helix1, helix5, helix7, sheet0, sheet1, sheet-1, distance2_default, helix1, ..., (up to distance5), nonconsec, helix1, ...]
 		data = {
-			"default" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			#"default" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"long_range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"short_range" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"consec" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"consec+secondary" : [[{} for i in range(AMINO_ACID_COUNT)] for j in range(AMINO_ACID_COUNT)],
+			"secondary" : {
+				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
+				secondary_struct_helix + "3" : {}, secondary_struct_helix + "4" : {},
+				secondary_struct_helix + "5" : {}, secondary_struct_helix + "6" : {},
+				secondary_struct_helix + "7" : {}, secondary_struct_helix + "8" : {},
+				secondary_struct_helix + "9" : {}, secondary_struct_helix + "10" : {},
+				secondary_struct_sheet + "0" : {}, secondary_struct_sheet + "1" : {},
+				secondary_struct_sheet + "-1" : {}
+			},
 			"medium" : [[] for i in range(AMINO_ACID_COUNT)],
 			"permissible" : {
 				secondary_struct_helix + "1" : {}, secondary_struct_helix + "2" : {},
@@ -492,7 +505,7 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 				
 					if mode == default_network_mode:
 						#Every orientation
-						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i)
+						'''r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i)
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
 							sec_struct = peptide.secondary_structure_aa(aa.tag)
@@ -504,8 +517,8 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 							if not add_to_data(aa, aa2, tag1, tag2, None, struct_type=sec_name):
 								print "Partial omit %r (unknown aa)." % pdbid
 								reported = True
-								break
-						'''#Nonconsec
+								break'''
+						#Nonconsec
 						r = peptide.nearby_aa(peptide.aminoacids[i], 10.0, i, consec=False)
 						for aa2 in r:
 							tag2 = aacode(aa2.type)
@@ -540,7 +553,7 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 							if not add_to_data(aa, aa2, tag1, tag2, "consec+secondary"):
 								print "Partial omit %r (unknown aa)." % pdbid
 								reported = True
-								break'''
+								break
 
 						#Medium
 						r = peptide.nearby_aa(aa, 10.0, i)
@@ -636,7 +649,7 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 				f.close()
 
 	if mode == default_network_mode:
-		'''write_data("long_range")
+		write_data("long_range")
 		write_data("consec")
 		write_data("short_range")
 		write_data("consec+secondary")
@@ -648,8 +661,8 @@ def block_stats_network(id, pdbids, output, mode='d', **kwargs):
 			f = open(join(write_path, sec_struct_type + ".txt"), 'w')
 			for pz, freq in data["secondary"][sec_struct_type].iteritems():
 				f.write(str(pz.x) + ", " + str(pz.y) + ", " + str(pz.z) + "; " + str(freq) + "\n")
-			f.close()'''
-		write_data("default")
+			f.close()
+		#write_data("default")
 
 		#Medium
 		medium_path = join(output, "medium")
@@ -758,7 +771,7 @@ def calculate_pdb_stats_network(input, output, mode=default_network_mode):
 	with open(input, 'r') as file:
 		contents = file.readlines()
 	#contents = numpy.random.choice(contents, 500)
-	block_size = 100
+	block_size = 50
 	i = 0
 	blocks = int(math.ceil(len(contents) / block_size))
 	if mode == default_network_mode:
